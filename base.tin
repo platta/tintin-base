@@ -45,6 +45,10 @@
 
 #NOP Load other classes.;
 _classLoad {bell} {plugins};
+_classLoad {split} {plugins};
+_classLoad {buffer} {plugins};
+_classLoad {widget} {plugins};
+_classLoad {panel} {plugins};
 
 #NOP Set up a logging panel.;
 _bufferCreate {logs} {0};
