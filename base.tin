@@ -46,6 +46,11 @@
 #NOP Load other classes.;
 _classLoad {bell} {plugins};
 
+#NOP Set up a logging panel.;
+_bufferCreate {logs} {0};
+_loggingSetBuffer {logs};
+_panelCreate {logs} {BUFFER} {logs};
+
 #NOP --------------------------------------------------------------------------;
 #NOP General utility aliases;
 #NOP --------------------------------------------------------------------------;
