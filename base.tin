@@ -1,0 +1,160 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Top-level base class;
+#NOP ;
+#NOP Use this class as the foundation for everything else.;
+#NOP ;
+#NOP Dependencies:;
+#NOP - base path exists.;
+#NOP - logging.tin in base folder.;
+#NOP - classutils.tin in base folder.;
+#NOP --------------------------------------------------------------------------;
+#CLASS {base} {OPEN};
+
+#NOP Get home folder.;
+#SCRIPT {__home} {echo $HOME};
+#VARIABLE {__home} {$__home[1]};
+
+#NOP Append to get base folder where we expect everything to live.;
+#VARIABLE {__base} {$__home/.tintin};
+
+#NOP Color and style of box drawing.;
+#VARIABLE {BOX_COLOR} {WHITE};
+#VARIABLE {BOX_STYLE} {JEWELED};
+
+#NOP Shortcut for clearing colors.;
+#VARIABLE {CLEAR_COLOR} {\e[0m<088>};
+
+#NOP Used for various telnet comms.;
+#VARIABLE {TELNET} {
+    {IAC} {\xFF}
+    {DONT} {\xFE}
+    {DO} {\xFD}
+    {WONT} {\xFC}
+    {WILL} {\xFB}
+    {SB} {\xFA}
+    {SE} {\xF0}
+    {GMCP} {\xC9}
+    {MXP} {\x5B}
+  };
+
+#NOP Load logging class manually.;
+#CLASS {logging} {READ} {$__base/plugins/logging.tin}
+
+#NOP Load classutils so it's easier to work with loading classes from now on.;
+#CLASS {classutils} {READ} {$__base/plugins/classutils.tin}
+
+#NOP Load other classes.;
+_classLoad {bell} {plugins};
+
+#NOP --------------------------------------------------------------------------;
+#NOP General utility aliases;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Create a keepalive ticker to ping the server so we don't get disconnected.;
+#ALIAS {_keepalive} {
+    #NOP %0;
+    #TICKER {KEEPALIVE} {#SEND \xFF\xF1\} {300};
+}
+
+#NOP --------------------------------------------------------------------------;
+#NOP Functions;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Truncate a string, putting ... at the end.;
+#NOP %1 - String.;
+#NOP %2 - Max length.;
+#FUNCTION {_stringTruncate} {
+    #NOP Start by trimming to max length.;
+    #LOCAL {maxLength} {%2};
+    #FORMAT {result} {%.${maxLength}s} {%1};
+
+    #IF {"%1" !== "$result"} {
+        #NOP String was truncated. Truncate the last 3 of what's left for dots.;
+        #MATH {maxLength} {$maxLength - 3};
+        #FORMAT {result} {%.${maxLength}s...} {%1};
+    };
+};
+
+#NOP Color gradient scale red/yellow/green;
+#NOP %1 - Current value;
+#NOP %2 - Max value;
+#FUNCTION {_colorScale} {
+    #switch {10 * %1 / %2} {
+        #case {0} {
+              #return <faa>;
+        };
+        #case {1} {
+            #return <fba>;
+        };
+        #case {2} {
+            #return <fca>;
+        };
+        #case {3} {
+            #return <fda>;
+        };
+        #case {4} {
+            #return <fea>;
+        };
+        #case {5} {
+            #return <ffa>;
+        };
+        #case {6} {
+            #return <efa>;
+        };
+        #case {7} {
+            #return <dfa>;
+        };
+        #case {8} {
+            #return <cfa>;
+        };
+        #case {9} {
+            #return <bfa>;
+        };
+        #default {
+            #return <afa>;
+        };
+    }
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Session starters;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Start a session.;
+#NOP %1 - Game name.;
+#NOP %2 - Character name.;
+#ALIAS {_connect} {
+    #NOP %0;
+    #NOP Assume game class exists in current folder, named game.<game>.tin;
+    _classLoad {%1} {game.%1} {game.%1};
+
+    #NOP Assume character class exists in current folder, named;
+    #NOP character.<game>.<char>.tin;
+    _classLoad {%1.%2} {game.%1} {character.%1.%2};
+
+    #NOP Start Session.;
+    #LOCAL {sessionName} {%1.%2};
+    #SESSION {%1.%2} {@__gameHostname{}} {@__gamePort{}};
+
+    #NOP Execute pre-login actions.;
+    #CLASS {%1} {OPEN};
+    #$sessionName {__gameBeforeLogin;};
+    #CLASS {%1} {CLOSE};
+    #CLASS {%1.%2} {OPEN};
+    #$sessionName {__characterBeforeLogin;};
+    #CLASS {%1.%2} {CLOSE};
+
+    #NOP Log in.;
+    #$sessionName {@__characterName{};};
+    #$sessionName {@__characterPassword{};};
+
+    #NOP Execute post-login actions.;
+    #CLASS {%1} {OPEN};
+    #$sessionName {__gameAfterLogin;};
+    #CLASS {%1} {CLOSE};
+    #CLASS {%1.%2} {OPEN};
+    #$sessionName {__characterAfterLogin;};
+    #CLASS {%1.%2} {CLOSE};
+};
+
+#CLASS {base} {CLOSE};

@@ -1,0 +1,42 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Sample character class file;
+#NOP --------------------------------------------------------------------------;
+#CLASS {samplegame.samplechar} {OPEN};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Functions and Aliases the base class will call while trying to connect.;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Put your character name in here.;
+#FUNCTION {__characterName} {
+    #RETURN {samplechar};
+};
+
+#NOP Put your character password in here.;
+#FUNCTION {__characterPassword} {
+    #RETURN {password};
+};
+
+#NOP Any actions that need to be done before starting the session.;
+#NOP E.G. Load any other classes your game requires to be in place before;
+#NOP logging in.;
+#ALIAS {__characterBeforeLogin} {
+    #NOP %0;
+
+};
+
+#NOP Actions to perform immediately after starting the session.;
+#NOP E.G. Answer post-login game prompts to fully log in.;
+#ALIAS {__characterAfterLogin} {
+    #NOP %0;
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Create aliases and set variables for this specific character.;
+#NOP --------------------------------------------------------------------------;
+
+#VARIABLE {sample} {value};
+
+#ALIAS {foo} {bar};
+
+#CLASS {samplegame.samplechar} {CLOSE};

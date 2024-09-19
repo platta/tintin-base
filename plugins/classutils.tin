@@ -1,0 +1,125 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Class utility functions;
+#NOP ;
+#NOP Dependencies;
+#NOP - logging;
+#NOP - $__base variable, defined in base.tin.;
+#NOP - events.tin to be in the base folder.;
+#NOP --------------------------------------------------------------------------;
+#CLASS {classutils} {OPEN};
+
+#VARIABLE {ACTIVE_CLASS} {};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Load classes;
+#NOP --------------------------------------------------------------------------;
+
+#NOP The events class is required because the native events for class load and;
+#NOP unload don't really work.;
+#CLASS {events} {READ} {$__base/plugins/events.tin}
+
+_eventHandlerRegister {CLASS ACTIVATED} {_classutilsClassActivatedHandler};
+#ALIAS {_classutilsClassActivatedHandler} {
+    #NOP %0;
+    #VARIABLE {ACTIVE_CLASS} {%1};
+};
+
+_eventHandlerRegister {CLASS DEACTIVATED} {_classutilsClassDeactivatedHandler};
+#ALIAS {_classutilsClassDeactivatedHandler} {
+    #NOP %0;
+    #VARIABLE {ACTIVE_CLASS} {};
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Aliases;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Load the specified class.;
+#NOP %1 - Name of the class, also assumed to be the name of the file.;
+#NOP %2 - Subfolder the class is in, relative to base folder. Do not include;
+#NOP      leading or trailing slashes.;
+#NOP %3 - Override default file name. Do not include .tin extension.;
+#ALIAS {_classLoad} {
+    #NOP %0;
+    #NOP Don't try to load if already loaded.;
+    #IF {"%1" != "" && @_classIsLoaded{%1} == 0} {
+        #NOP Register these before actually loading the class, because the;
+        #NOP class itself needs the ability to hook into these events.;
+        _eventRegister {CLASS LOAD %1};
+        _eventRegister {CLASS UNLOAD %1};
+
+        #NOP Now that the events are registered, load the class.;
+        #LOCAL {fileName} {%1};
+        #IF {"%3" != ""} {
+            #LOCAL {fileName} {%3};
+        };
+
+        #IF {"%2" != ""} {
+            #CLASS {%1} {READ} {$__base/%2/$fileName.tin};
+        }; #ELSE {
+            #CLASS {%1} {READ} {$__base/$fileName.tin};
+        };
+
+        #NOP Now that the class is loaded, fire the load event.;
+        _eventFire {CLASS LOAD} {%1};
+        _eventFire {CLASS LOAD %1};
+    }; #ELSE {
+        _debug {_classLoad: Class '%1' is already loaded.};
+    };
+};
+
+#NOP Unload the specified class.;
+#NOP %1 - Name of the class.;
+#ALIAS {_classUnload} {
+    #NOP %0;
+    #NOP Only kill if loaded.;
+    #IF {@_classIsLoaded{%1} == 1} {
+        #NOP Fire the unload event so the class can clean itself up.;
+        _eventFire {CLASS UNLOAD} {%1};
+        _eventFire {CLASS UNLOAD %1};
+
+        #NOP Unregister the events (will kill any event handlers).;
+        _eventUnregister {CLASS LOAD %1};
+        _eventUnregister {CLASS UNLOAD %1};
+
+        #NOP Actually remove the class.;
+        #CLASS {%1} {KILL};
+    }; #ELSE {
+        _debug {_classUnload: Class '%1' is not loaded.};
+    };
+};
+
+#NOP Reload the specified class.;
+#NOP %1 - Name of the class, also assumed to be the name of the file.;
+#NOP %2 - Subfolder the class is in. Relative to base folder. Do not include;
+#NOP      leading or trailing slashes.;
+#NOP %3 - Override default file name. Do not include .tin extension.;
+#ALIAS {_classReload} {
+    #NOP %0;
+    #IF {@_classIsLoaded{%1} == 1} {
+        _classUnload {%1};
+        _classLoad {%1} {%2} {%3};
+    }; #ELSE {
+        _debug {_classReload: Class '%1' is not loaded.};
+    };
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Functions;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Determine if a class has been loaded.;
+#NOP %1 - Name of the class.;
+#FUNCTION {_classIsLoaded} {
+    #LOCAL {classSize} {0};
+
+    #LINE {QUIET} {#CLASS {%1} {SIZE} {classSize}};
+
+    #IF {$classSize > 0} {
+        #RETURN 1;
+    }; #ELSE {
+        #RETURN 0;
+    };
+};
+
+#CLASS {classutils} {CLOSE};

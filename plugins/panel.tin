@@ -1,0 +1,518 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Panel positioning and rendering class;
+#NOP ;
+#NOP Dependencies:;
+#NOP - events;
+#NOP - logging;
+#NOP - split;
+#NOP - buffer;
+#NOP - widget;
+#NOP --------------------------------------------------------------------------;
+#CLASS {panel} {OPEN};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Variables;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Holds all panel data.;
+#VARIABLE {PANELS} {};
+
+#NOP Holds base numbers for panel dimensions based on screen size.;
+#VARIABLE {PANEL_DIMENSIONS} {};
+
+#NOP Reverse scrolling direction;
+#VARIABLE {PANEL_REVERSE_SCROLL} {0};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Aliases;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Create a new panel.;
+#NOP %1 - Panel name;
+#NOP %2 - Content type (MAP|BUFFER|WIDGET);
+#NOP %3 - Buffer or widget name;
+#ALIAS {_panelCreate} {
+    #NOP %0;
+    #IF {&PANELS[%1]} {
+        _warn {_panelCreate: Panel '%1' already exists.};
+        #RETURN;
+    };
+
+    #LOCAL {type} {};
+    #FORMAT {type} {%u} {%2};
+
+    #VARIABLE {PANELS[%1]} {
+        {name} {%1}
+        {class} {$ACTIVE_CLASS}
+        {type} {$type}
+        {visible} {0}
+    };
+
+    #IF {"$type" == "BUFFER"} {
+        #VARIABLE {PANELS[%1][contents]} {%3};
+        _eventHandlerRegister {BUFFER UPDATED %3} {_panelDraw {%1}};
+    }; #ELSEIF {"$type" == "WIDGET"} {
+        #VARIABLE {PANELS[%1][contents]} {%3};
+        _eventHandlerRegister {WIDGET UPDATED %3} {_panelDraw {%1}};
+    };
+};
+
+#NOP Destroy a panel.;
+#NOP %1 - Panel name;
+#ALIAS {_panelDestroy} {
+    #NOP %0;
+    #IF {!&PANELS[%1]} {
+        _warn {_panelDestroy: Panel '%1' does not exist.};
+        #RETURN;
+    };
+
+    #NOP Remove event handler for buffer if exists.;
+    #IF {"$PANELS[%1][type]" == "BUFFER"} {
+        _eventHandlerUnregister {BUFFER UPDATED $PANELS[%1][contents]} {_panelDraw {$PANELS[%1][name]}};
+    }; #ELSEIF {"$PANELS[%1][type]" == "WIDGET"} {
+        _eventHandlerUnregister {WIDGET UPDATED $PANELS[%1][contents]} {_panelDraw {$PANELS[%1][name]}};
+    };
+
+    #UNVARIABLE {PANELS[%1]};
+};
+
+#NOP Hide a panel.;
+#NOP %1 - Panel name;
+#ALIAS {_panelHide} {
+    #NOP %0;
+    #IF {!&PANELS[%1]} {
+        _warn {_panelHide: Panel '%1' does not exist.};
+        #RETURN;
+    };
+
+    #VARIABLE {PANELS[%1][visible]} {0};
+
+    _eventFire {SPLIT REFRESH};
+}
+
+#NOP Show a panel.;
+#NOP %1 - Panel name;
+#ALIAS {_panelShow} {
+    #NOP %0;
+    #IF {!&PANELS[%1]} {
+        _warn {_panelShow: Panel '%1' does not exist.};
+        #RETURN;
+    };
+
+    #VARIABLE {PANELS[%1][visible]} {1};
+
+    _eventFire {SPLIT REFRESH};
+}
+
+#NOP Toggle a panel.;
+#NOP %1 - Panel name;
+#ALIAS {_panelToggle} {
+    #NOP %0;
+    #IF {!&PANELS[%1]} {
+        _warn {_panelToggle: Panel '%1' does not exist.};
+        #RETURN;
+    };
+
+    #VARIABLE {PANELS[%1][visible]} {!$PANELS[%1][visible]};
+
+    _eventFire {SPLIT REFRESH};
+}
+
+#NOP Dock a panel in a new position.;
+#NOP %1 - Panel name;
+#NOP %2 - Dock container;
+#NOP %3 - Dock top coord;
+#NOP %4 - Dock left coord;
+#NOP %5 - Dock bottom coord;
+#NOP %6 - Dock right coord;
+#ALIAS {_panelDock} {
+    #NOP %0;
+    #IF {!&PANELS[%1]} {
+        _warn {_panelDock: Panel '%1' does not exist.};
+        #RETURN;
+    };
+
+    #LOCAL {container} {};
+    #FORMAT {container} {%u} {%2};
+
+    #VARIABLE {PANELS[%1][container]} {$container};
+    #VARIABLE {PANELS[%1][top]} {%3};
+    #VARIABLE {PANELS[%1][left]} {%4};
+    #VARIABLE {PANELS[%1][bottom]} {%5};
+    #VARIABLE {PANELS[%1][right]} {%6};
+    #VARIABLE {PANELS[%1][visible]} {1};
+
+    _eventFire {SPLIT REFRESH};
+};
+
+#NOP Calculate container dimensions.;
+#ALIAS {_updatePanelDimensions} {
+    #NOP %0;
+    #VARIABLE {PANEL_DIMENSIONS} {};
+
+    #VARIABLE {PANEL_DIMENSIONS[TOP][TOP]} {@_panelToScreenCoord{TOP; @_splitGetExtCoord{TOP; TOP}}};
+    #VARIABLE {PANEL_DIMENSIONS[TOP][LEFT]} {@_panelToScreenCoord{LEFT; @_splitGetExtCoord{TOP; LEFT}}};
+    #VARIABLE {PANEL_DIMENSIONS[TOP][BOTTOM]} {@_panelToScreenCoord{BOTTOM; @_splitGetExtCoord{TOP; BOTTOM}}};
+    #VARIABLE {PANEL_DIMENSIONS[TOP][RIGHT]} {@_panelToScreenCoord{RIGHT; @_splitGetExtCoord{TOP; RIGHT}}};
+    #MATH {PANEL_DIMENSIONS[TOP][gridWidth]} {($PANEL_DIMENSIONS[TOP][RIGHT] - $PANEL_DIMENSIONS[TOP][LEFT]) / 6};
+    #MATH {PANEL_DIMENSIONS[TOP][gridWidthRemainder]} {($PANEL_DIMENSIONS[TOP][RIGHT] - $PANEL_DIMENSIONS[TOP][LEFT]) % 6};
+    #MATH {PANEL_DIMENSIONS[TOP][gridHeight]} {($PANEL_DIMENSIONS[TOP][BOTTOM] - $PANEL_DIMENSIONS[TOP][TOP]) / 6};
+    #MATH {PANEL_DIMENSIONS[TOP][gridHeightRemainder]} {($PANEL_DIMENSIONS[TOP][BOTTOM] - $PANEL_DIMENSIONS[TOP][TOP]) % 6};
+
+    #VARIABLE {PANEL_DIMENSIONS[LEFT][TOP]} {@_panelToScreenCoord{TOP; @_splitGetExtCoord{LEFT; TOP}}};
+    #VARIABLE {PANEL_DIMENSIONS[LEFT][LEFT]} {@_panelToScreenCoord{LEFT; @_splitGetExtCoord{LEFT; LEFT}}};
+    #VARIABLE {PANEL_DIMENSIONS[LEFT][BOTTOM]} {@_panelToScreenCoord{BOTTOM; @_splitGetExtCoord{LEFT; BOTTOM}}};
+    #VARIABLE {PANEL_DIMENSIONS[LEFT][RIGHT]} {@_panelToScreenCoord{RIGHT; @_splitGetExtCoord{LEFT; RIGHT}}};
+    #MATH {PANEL_DIMENSIONS[LEFT][gridWidth]} {($PANEL_DIMENSIONS[LEFT][RIGHT] - $PANEL_DIMENSIONS[LEFT][LEFT]) / 6};
+    #MATH {PANEL_DIMENSIONS[LEFT][gridWidthRemainder]} {($PANEL_DIMENSIONS[LEFT][RIGHT] - $PANEL_DIMENSIONS[LEFT][LEFT]) % 6};
+    #MATH {PANEL_DIMENSIONS[LEFT][gridHeight]} {($PANEL_DIMENSIONS[LEFT][BOTTOM] - $PANEL_DIMENSIONS[LEFT][TOP]) / 6};
+    #MATH {PANEL_DIMENSIONS[LEFT][gridHeightRemainder]} {($PANEL_DIMENSIONS[LEFT][BOTTOM] - $PANEL_DIMENSIONS[LEFT][TOP]) % 6};
+
+    #VARIABLE {PANEL_DIMENSIONS[BOTTOM][TOP]} {@_panelToScreenCoord{TOP; @_splitGetExtCoord{BOTTOM; TOP}}};
+    #VARIABLE {PANEL_DIMENSIONS[BOTTOM][LEFT]} {@_panelToScreenCoord{LEFT; @_splitGetExtCoord{BOTTOM; LEFT}}};
+    #VARIABLE {PANEL_DIMENSIONS[BOTTOM][BOTTOM]} {@_panelToScreenCoord{BOTTOM; @_splitGetExtCoord{BOTTOM; BOTTOM}}};
+    #VARIABLE {PANEL_DIMENSIONS[BOTTOM][RIGHT]} {@_panelToScreenCoord{RIGHT; @_splitGetExtCoord{BOTTOM; RIGHT}}};
+    #MATH {PANEL_DIMENSIONS[BOTTOM][gridWidth]} {($PANEL_DIMENSIONS[BOTTOM][RIGHT] - $PANEL_DIMENSIONS[BOTTOM][LEFT]) / 6};
+    #MATH {PANEL_DIMENSIONS[BOTTOM][gridWidthRemainder]} {($PANEL_DIMENSIONS[BOTTOM][RIGHT] - $PANEL_DIMENSIONS[BOTTOM][LEFT]) % 6};
+    #MATH {PANEL_DIMENSIONS[BOTTOM][gridHeight]} {($PANEL_DIMENSIONS[BOTTOM][BOTTOM] - $PANEL_DIMENSIONS[BOTTOM][TOP]) / 6};
+    #MATH {PANEL_DIMENSIONS[BOTTOM][gridHeightRemainder]} {($PANEL_DIMENSIONS[BOTTOM][BOTTOM] - $PANEL_DIMENSIONS[BOTTOM][TOP]) % 6};
+
+    #VARIABLE {PANEL_DIMENSIONS[RIGHT][TOP]} {@_panelToScreenCoord{TOP; @_splitGetExtCoord{RIGHT; TOP}}};
+    #VARIABLE {PANEL_DIMENSIONS[RIGHT][LEFT]} {@_panelToScreenCoord{LEFT; @_splitGetExtCoord{RIGHT; LEFT}}};
+    #VARIABLE {PANEL_DIMENSIONS[RIGHT][BOTTOM]} {@_panelToScreenCoord{BOTTOM; @_splitGetExtCoord{RIGHT; BOTTOM}}};
+    #VARIABLE {PANEL_DIMENSIONS[RIGHT][RIGHT]} {@_panelToScreenCoord{RIGHT; @_splitGetExtCoord{RIGHT; RIGHT}}};
+    #MATH {PANEL_DIMENSIONS[RIGHT][gridWidth]} {($PANEL_DIMENSIONS[RIGHT][RIGHT] - $PANEL_DIMENSIONS[RIGHT][LEFT]) / 6};
+    #MATH {PANEL_DIMENSIONS[RIGHT][gridWidthRemainder]} {($PANEL_DIMENSIONS[RIGHT][RIGHT] - $PANEL_DIMENSIONS[RIGHT][LEFT]) % 6};
+    #MATH {PANEL_DIMENSIONS[RIGHT][gridHeight]} {($PANEL_DIMENSIONS[RIGHT][BOTTOM] - $PANEL_DIMENSIONS[RIGHT][TOP]) / 6};
+    #MATH {PANEL_DIMENSIONS[RIGHT][gridHeightRemainder]} {($PANEL_DIMENSIONS[RIGHT][BOTTOM] - $PANEL_DIMENSIONS[RIGHT][TOP]) % 6};
+
+    #VARIABLE {PANEL_DIMENSIONS[INPUT][TOP]} {@_panelToScreenCoord{TOP; @_splitGetExtCoord{INPUT; TOP}}};
+    #VARIABLE {PANEL_DIMENSIONS[INPUT][LEFT]} {@_panelToScreenCoord{LEFT; @_splitGetExtCoord{INPUT; LEFT}}};
+    #VARIABLE {PANEL_DIMENSIONS[INPUT][RIGHT]} {@_panelToScreenCoord{RIGHT; @_splitGetExtCoord{INPUT; RIGHT}}};
+    #VARIABLE {PANEL_DIMENSIONS[INPUT][BOTTOM]} {@_panelToScreenCoord{BOTTOM; @_splitGetExtCoord{INPUT; BOTTOM}}};
+};
+
+#NOP Draw one panel.;
+#NOP %1 - Name of the panel to draw;
+#ALIAS {_panelDraw} {
+    #NOP %0;
+    #IF {!&PANELS[%1]} {
+        _warn {_panelDraw: Panel '%1' does not exist.};
+        #RETURN;
+    };
+
+    __panelDrawInternal {$PANELS[%1]};
+}
+
+#NOP Internal panel drawing function.;
+#ALIAS {__panelDrawInternal} {
+    #NOP %0;
+    #LOCAL {panel} {%1};
+
+    #LOCAL {coords} {@_panelGetPanelCoords{{$panel}}};
+
+    #IF {!$coords[visible]} {
+        #RETURN;
+    };
+
+    #IF {"$panel[type]" == "MAP"} {
+        #NOP Set map coordinates and turn on map. Maybe also draw box around it?;
+        #DRAW {$BOX_COLOR} {$BOX_STYLE} {BOX} {$coords[top]} {$coords[left]} {$coords[bottom]} {$coords[right]};
+        #MAP {OFFSET} {$coords[top] + 1 + $MAP_TWEAK[TOP]} {$coords[left] + 1 + $MAP_TWEAK[LEFT]} {$coords[bottom] - 1 + $MAP_TWEAK[BOTTOM]} {$coords[right] - 1 + $MAP_TWEAK[RIGHT]};
+        #MAP {FLAG} {VTMAP} {ON};
+    }; #ELSEIF {"$panel[type]" == "BUFFER"} {
+        #NOP Render buffer at this position.;
+        _bufferDraw {$panel[contents]} {$coords[top]} {$coords[left]} {$coords[bottom]} {$coords[right]};
+    }; #ELSEIF {"$panel[type]" == "WIDGET"} {
+        #NOP Draw the widget at this position.;
+        _widgetDraw {$panel[contents]} {$coords[top]} {$coords[left]} {$coords[bottom]} {$coords[right]};
+    }; #ELSE {
+        #NOP Empty panel.;
+        #DRAW {$BOX_COLOR} {$BOX_STYLE} BOX {$coords[top]} {$coords[left]} {$coords[bottom]} {$coords[right]};
+    };
+};
+
+#NOP Draw all panels.;
+#ALIAS {_panelDrawAll} {
+    #NOP %0;
+    #LOCAL {panel} {};
+    #FOREACH {$PANELS[%*]} {panel} {
+        #IF {$panel[visible]} {
+            __panelDrawInternal {$panel};
+        }
+    };
+};
+
+#NOP Reverse scroll direction;
+#ALIAS {_panelReverseScroll} {
+    #NOP %0;
+    #MATH {PANEL_REVERSE_SCROLL} {!$PANEL_REVERSE_SCROLL};
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Functions;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Convert negative numbers to screen coordinates.;
+#NOP %1 - top|left|bottom|right;
+#NOP %2 - value to convert;
+#FUNCTION {_panelToScreenCoord} {
+    #LOCAL {coordinate} {};
+    #FORMAT {coordinate} {%u} {%1};
+
+    #IF {%2 > 0} {
+        #RETURN %2;
+    };
+
+    #IF {"$coordinate" == "TOP" || "$coordinate" == "BOTTOM"} {
+        #LOCAL {height} {};
+        #SCREEN {GET} {ROWS} {height};
+        #MATH {result} {%2 + $height + 1};
+    }; #ELSEIF {"$coordinate" == "LEFT" || "$coordinate" == "RIGHT"} {
+        #LOCAL {width} {};
+        #SCREEN {GET} {COLS} {width};
+        #MATH {result} {%2 + $width + 1};
+    }; #ELSE {
+        #RETURN 0;
+    };
+};
+
+#NOP Get a panel's screen coordinates.;
+#NOP %1 - Panel name;
+#FUNCTION {_panelGetPanelCoords} {
+    #LOCAL {panel} {%1};
+
+    #NOP Skip hidden panels.;
+    #IF {!$panel[visible] || !$SPLIT_BARS[$panel[container]][visible]} {
+        #RETURN {
+            {visible} {0}
+        };
+    };
+
+    #LOCAL {remainders} {};
+
+    #IF {($panel[top] - 1) > $PANEL_DIMENSIONS[$panel[container]][gridHeightRemainder]} {
+        #LOCAL {remainders[top]} {$PANEL_DIMENSIONS[$panel[container]][gridHeightRemainder]};
+    }; #ELSE {
+        #LOCAL {remainders[top]} {$panel[top] - 1}
+    };
+
+    #IF {($panel[left] - 1) > $PANEL_DIMENSIONS[$panel[container]][gridWidthRemainder]} {
+        #LOCAL {remainders[left]} {$PANEL_DIMENSIONS[$panel[container]][gridWidthRemainder]};
+    }; #ELSE {
+        #LOCAL {remainders[left]} {$panel[left] - 1};
+    };
+
+    #IF {$panel[bottom] > $PANEL_DIMENSIONS[$panel[container]][gridHeightRemainder]} {
+        #LOCAL {remainders[bottom]} {$PANEL_DIMENSIONS[$panel[container]][gridHeightRemainder]};
+    }; #ELSE {
+        #LOCAL {remainders[bottom]} {$panel[bottom]};
+    };
+
+    #IF {$panel[right] > $PANEL_DIMENSIONS[$panel[container]][gridWidthRemainder]} {
+        #LOCAL {remainders[right]} {$PANEL_DIMENSIONS[$panel[container]][gridWidthRemainder]};
+    }; #ELSE {
+        #LOCAL {remainders[right]} {$panel[right]};
+    };
+
+    #NOP Get coordinates.;
+    #LOCAL {top} {};
+    #LOCAL {left} {};
+    #LOCAL {bottom} {};
+    #LOCAL {right} {};
+
+    #MATH {top} {$PANEL_DIMENSIONS[$panel[container]][TOP] + ($PANEL_DIMENSIONS[$panel[container]][gridHeight]) * ($panel[top] - 1) + $remainders[top]};
+    #MATH {left} {$PANEL_DIMENSIONS[$panel[container]][LEFT] + ($PANEL_DIMENSIONS[$panel[container]][gridWidth]) * ($panel[left] - 1) + $remainders[left]};
+    #MATH {bottom} {$PANEL_DIMENSIONS[$panel[container]][TOP] + ($PANEL_DIMENSIONS[$panel[container]][gridHeight]) * $panel[bottom] + $remainders[bottom]};
+    #MATH {right} {$PANEL_DIMENSIONS[$panel[container]][LEFT] + ($PANEL_DIMENSIONS[$panel[container]][gridWidth]) * $panel[right] + $remainders[right]};
+
+    #RETURN {
+        {visible} {1}
+        {top} {$top}
+        {left} {$left}
+        {bottom} {$bottom}
+        {right} {$right}
+    };
+};
+
+#NOP Get the panel a pair of coordinates points to.;
+#NOP %1 - row;
+#NOP %2 - col;
+#FUNCTION {_panelScreenCoordToPanel} {
+    #NOP Start by figuring out which panel we're talking about.;
+    #IF {$SPLIT_BARS[TOP][visible] && %1 > $PANEL_DIMENSIONS[TOP][TOP] && %1 < $PANEL_DIMENSIONS[TOP][BOTTOM] && %2 > $PANEL_DIMENSIONS[TOP][LEFT] && %2 < $PANEL_DIMENSIONS[TOP][RIGHT]} {
+        #NOP In top panel.;
+        #LOCAL {container} {TOP};
+    }; #ELSEIF {$SPLIT_BARS[RIGHT][visible] && %1 > $PANEL_DIMENSIONS[RIGHT][TOP] && %1 < $PANEL_DIMENSIONS[RIGHT][BOTTOM] && %2 > $PANEL_DIMENSIONS[RIGHT][LEFT] && %2 < $PANEL_DIMENSIONS[RIGHT][RIGHT]} {
+        #NOP In right panel.;
+        #LOCAL {container} {RIGHT};
+    }; #ELSEIF {$SPLIT_BARS[BOTTOM][visible] && %1 > $PANEL_DIMENSIONS[BOTTOM][TOP] && %1 < $PANEL_DIMENSIONS[BOTTOM][BOTTOM] && %2 > $PANEL_DIMENSIONS[BOTTOM][LEFT] && %2 < $PANEL_DIMENSIONS[BOTTOM][RIGHT]} {
+        #NOP In bottom panel.;
+        #LOCAL {container} {BOTTOM};
+    }; #ELSEIF {$SPLIT_BARS[LEFT][visible] && %1 > $PANEL_DIMENSIONS[LEFT][TOP] && %1 < $PANEL_DIMENSIONS[LEFT][BOTTOM] && %2 > $PANEL_DIMENSIONS[LEFT][LEFT] && %2 < $PANEL_DIMENSIONS[LEFT][RIGHT]} {
+        #NOP In left panel.;
+        #LOCAL {container} {LEFT};
+    }; #ELSE {
+        #NOP Not in a panel. We're either in the scroll area or input panel.;
+        #NOP OR we could be on the border between panels. Maybe worry about;
+        #NOP that another time.;
+        #IF {%1 >= $PANEL_DIMENSIONS[INPUT][TOP]} {
+            #NOP In the input area.;
+            #RETURN {__INPUT};
+        }; #ELSE {
+            #NOP In the scroll buffer.;
+            #RETURN {__SCROLL};
+        };
+    };
+
+    #LOCAL {panel} {};
+    #FOREACH {$PANELS[%*]} {panel} {
+        #LOCAL {coords} {@_panelGetPanelCoords{{$panel}}};
+        #IF {$coords[visible] && %1 > $coords[top] && %1 < $coords[bottom] && %2 > $coords[left] && %2 < $coords[right]} {
+            #RETURN {$panel[name]};
+        };
+    };
+
+    #RETURN {__NONE};
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Events;
+#NOP --------------------------------------------------------------------------;
+
+_eventHandlerRegister {SPLIT REFRESH} {_panelSplitRefreshHandler};
+#ALIAS {_panelSplitRefreshHandler} {
+    #NOP %0;
+    _updatePanelDimensions;
+    _panelDrawAll;
+};
+
+_eventHandlerRegister {SHORT-CLICKED MOUSE BUTTON ONE} {_panelClickHandler};
+#ALIAS {_panelClickHandler} {
+    #NOP %0;
+    #LOCAL {panelName} {@_panelScreenCoordToPanel{{%1}; {%2}}};
+    #IF {&PANELS[$panelName]} {
+        _panelClick {$PANELS[$panelName]} {%1} {%2};
+    }; #ELSEIF {"$panelName" == "__SCROLL"} {
+        #BUFFER {END};
+    };
+};
+
+_eventHandlerRegister {SCROLLED MOUSE WHEEL UP} {_panelScrollUpHandler};
+#ALIAS {_panelScrollUpHandler} {
+    #NOP %0;
+    #LOCAL {panelName} {@_panelScreenCoordToPanel{{%1}; {%2}}};
+    #IF {&PANELS[$panelName]} {
+        #IF {$PANEL_REVERSE_SCROLL} {
+            _panelScroll {$PANELS[$panelName]} {-1};
+        }; #ELSE {
+            _panelScroll {$PANELS[$panelName]} {1};
+        };
+    }; #ELSEIF {"$panelName" == "__SCROLL"} {
+        #IF {$PANEL_REVERSE_SCROLL} {
+            #BUFFER {DOWN} {1};
+        }; #ELSE {
+            #BUFFER {UP} {1};
+        };
+    };
+};
+
+_eventHandlerRegister {SCROLLED MOUSE WHEEL DOWN} {_panelScrollDownHandler};
+#ALIAS {_panelScrollDownHandler} {
+    #NOP %0;
+    #LOCAL {panelName} {@_panelScreenCoordToPanel{{%1}; {%2}}};
+    #IF {&PANELS[$panelName]} {
+        #IF {$PANEL_REVERSE_SCROLL} {
+            _panelScroll {$PANELS[$panelName]} {1};
+        }; #ELSE {
+            _panelScroll {$PANELS[$panelName]} {-1};
+        };
+    }; #ELSEIF {"$panelName" == "__SCROLL"} {
+        #IF {$PANEL_REVERSE_SCROLL} {
+            #BUFFER {UP} {1};
+        }; #ELSE {
+            #BUFFER {DOWN} {1};
+        };
+    };
+};
+
+#NOP Perform a click.;
+#NOP %1 - Panel;
+#NOP %2 - Row;
+#NOP %3 - Col;
+#ALIAS {_panelClick} {
+    #NOP %0;
+    #NOP Check panel type. This only applies to widgets. Raise their event;
+    #NOP TODO: Make sure coordinates get passed along here...;
+    #LOCAL {panel} {%1};
+    #IF {"$panel[type]" == "BUFFER"} {
+        _bufferUnlock {$panel[contents]};
+    }; #ELSEIF {"$panel[type]" == "WIDGET"} {
+        _eventFire {WIDGET CLICKED $panel[contents]} {%2} {%3};
+    };
+};
+
+#NOP Perform a scroll.;
+#NOP %1 - Panel;
+#NOP %2 - 1 for up, -1 for down.;
+#ALIAS {_panelScroll} {
+    #NOP %0;
+    #NOP Check panel type. Ignore map. Scroll buffers, raise event for widgets.;
+    #LOCAL {panel} {%1};
+    #IF {"$panel[type]" == "BUFFER"} {
+        #IF {%2 > 0} {
+            _bufferUp {$panel[contents]} {%2};
+        }; #ELSE {
+            _bufferDown {$panel[contents]} {-%2};
+        };
+    }; #ELSEIF {"$panel[type]" == "WIDGET"} {
+        _eventFire {WIDGET SCROLLED $panel[contents]} {%2};
+    };
+};
+
+_eventHandlerRegister {CLASS LOAD panel} {_panelClassLoadHandler};
+#ALIAS {_panelClassLoadHandler} {
+    #NOP %0;
+    #NOP Update panel dimensions for the first time.;
+    _updatePanelDimensions;
+};
+
+#NOP Register the unload handler.;
+_eventHandlerRegister {CLASS UNLOAD panel} {_panelSelfUnloadHandler};
+#ALIAS {_panelSelfUnloadHandler} {
+    #NOP %0;
+    #NOP Destroy all panels.;
+    #LOCAL {toDestroy} {};
+    #FOREACH {$PANELS[%*]} {panel} {
+        #LIST {toDestroy} {INSERT} {1} {$panel[name]};
+    };
+
+    #IF {&toDestroy[]} {
+        #LOCAL {i} {0};
+        #LOOP {1} {&toDestroy[]} {i} {
+            _panelDestroy {$toDestroy[$i]};
+        };
+    };
+};
+
+#NOP Destroy panels of other classes being unloaded.;
+_eventHandlerRegister {CLASS UNLOAD} {_panelClassUnloadHandler} {5};
+#ALIAS {_panelClassUnloadHandler} {
+    #NOP %0;
+    #NOP Remove any panels that were created by that class.;
+    #LOCAL {toDestroy} {};
+    #FOREACH {$PANELS[%*]} {panel} {
+        #IF {"$panel[class]" == "%1"} {
+            #LIST {toDestroy} {INSERT} {1} {$panel[name]};
+        };
+    };
+
+    #IF {&toDestroy[]} {
+        #LOCAL {i} {0};
+        #LOOP {1} {&toDestroy[]} {i} {
+            _panelDestroy {$toDestroy[$i]};
+        };
+    };
+};
+
+#CLASS {panel} {CLOSE};

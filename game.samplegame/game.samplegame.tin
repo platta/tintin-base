@@ -1,0 +1,33 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Sample game class file;
+#NOP --------------------------------------------------------------------------;
+#CLASS {samplegame} {OPEN};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Functions and Aliases the base class will call while trying to connect.;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Put your game's hostname in here.;
+#FUNCTION {__gameHostname} {
+    #RETURN {game.com};
+};
+
+#NOP Put your game's port in here.;
+#FUNCTION {__gamePort} {
+    #RETURN {4000};
+};
+
+#NOP Any actions that need to be done before starting the session.;
+#NOP E.G. Load any other classes your game requires to be in place before;
+#NOP logging in.;
+#ALIAS {__gameBeforeLogin} {
+    #NOP %0;
+};
+
+#NOP Actions to perform immediately after starting the session.;
+#NOP E.G. Answer post-login game prompts to fully log in.;
+#ALIAS {__gameAfterLogin} {
+    #NOP %0;
+};
+
+#CLASS {samplegame} {CLOSE};

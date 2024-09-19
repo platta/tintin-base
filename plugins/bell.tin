@@ -1,0 +1,53 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Bell controls;
+#NOP ;
+#NOP Dependencies:;
+#NOP - logging;
+#NOP --------------------------------------------------------------------------;
+#CLASS {bell} {OPEN};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Variables;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Global bell control;
+#VARIABLE {RING_BELL} {1};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Aliases;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Ring bell;
+#NOP Wrapper for actual bell so it observes the global flag.;
+#ALIAS {_bell} {
+    #NOP %0;
+    #IF {$RING_BELL} {
+        #BELL;
+    };
+};
+
+#NOP Toggle bell.;
+#ALIAS {_bellToggle} {
+    #NOP %0;
+    #IF {$RING_BELL} {
+        _bellOff;
+    }; #ELSE {
+        _bellOn;
+    };
+};
+
+#NOP Turn bell on.;
+#ALIAS {_bellOn} {
+    #NOP %0;
+    #VARIABLE {RING_BELL} {1};
+    _info {Bell is now turned ON};
+    _bell;
+};
+
+#NOP Turn bell off.;
+#ALIAS {_bellOff} {
+    #VARIABLE {RING_BELL} {0};
+    _info {Bell is now turned OFF};
+};
+
+#CLASS {bell} {CLOSE};

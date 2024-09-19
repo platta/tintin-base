@@ -1,0 +1,362 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Custom text buffer functions;
+#NOP ;
+#NOP Dependencies:;
+#NOP - events;
+#NOP - logging;
+#NOP --------------------------------------------------------------------------;
+#CLASS {buffer} {OPEN};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Variables;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Holds all the data.;
+#VARIABLE {BUFFERS} {};
+
+#NOP Default size for buffers if not specified.;
+#VARIABLE {DEFAULT_BUFFER_SIZE} {250};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Aliases;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Create a new buffer.;
+#NOP %1 - Buffer name;
+#NOP %2 - (0|1) Show timestamps (default 1);
+#NOP %3 - (0|1) Ring bell when adding to this buffer (default 0);
+#NOP %4 - (0|1) Top-to-bottom (default 0 for bottom-to-top);
+#NOP %2 - Buffer size (default is controlled by a variable defined up top);
+#ALIAS {_bufferCreate} {
+    #NOP %0;
+    #IF {&BUFFERS[%1]} {
+        _warn {_bufferCreate: Buffer '%1' already exists.};
+        #RETURN;
+    };
+
+    #NOP Setting for showing timestamps or not.;
+    #LOCAL {timestamps} {1};
+    #IF {%2 == 0} {
+        #LOCAL {timestamps} {0};
+    };
+
+    #NOP Setting for ringing bell when adding to this buffer.;
+    #LOCAL {ringBell} {0};
+    #IF {%3 == 1} {
+        #LOCAL {ringBell} {1};
+    };
+
+    #NOP Setting for the direction text flows in a buffer.;
+    #LOCAL {topToBottom} {0};
+    #IF {%4 == 1} {
+        #LOCAL {topToBottom} {1};
+    };
+
+    #NOP Setting for buffer size.;
+    #LOCAL {size} {$DEFAULT_BUFFER_SIZE};
+    #IF {%5} {
+        #LOCAL {size} {%5};
+    };
+
+    #NOP Create the buffer entry.;
+    #VARIABLE {BUFFERS[%1]} {
+        {name} {%1}
+        {class} {$ACTIVE_CLASS}
+        {size} {$size}
+        {contents} {}
+        {scrollPosition} {1}
+        {locked} {0}
+        {timestamps} {$timestamps}
+        {ringBell} {$ringBell}
+        {topToBottom} {$topToBottom}
+    };
+
+    #NOP Register the event for when this buffer is updated.;
+    _eventRegister {BUFFER UPDATED %1};
+};
+
+#NOP Destroy a buffer.;
+#NOP %1 - Buffer name;
+#ALIAS {_bufferDestroy} {
+    #NOP %0;
+    #IF {&BUFFERS[%1] == 0} {
+        _warn {_bufferDestroy: Buffer '%1' does not exist};
+        #RETURN;
+    };
+
+    #NOP Remove the buffer.;
+    #UNVARIABLE {BUFFERS[%1]};
+
+    #NOP Unregister its update event.;
+    _eventUnregister {BUFFER UPDATED %1};
+};
+
+#NOP Add a new item to a buffer.;
+#NOP %1 - Buffer name;
+#NOP %2 - Content;
+#NOP %3 - (0|1) Skip bell (if enabled for this buffer). Default 0.;
+#ALIAS {_bufferAdd} {
+    #NOP %0;
+    #IF {&BUFFERS[%1] == 0} {
+        _warn {_bufferAdd: Buffer '%1' does not exist};
+        #RETURN;
+    };
+
+    #LOCAL {timestamp} {};
+    #IF {$BUFFERS[%1][timestamps]} {
+        #FORMAT {timestamp} {[%t] } {%Y-%m-%d %H:%M:%S};
+    };
+
+    #LOCAL {skipBell} {0};
+    #IF {%3 == 1} {
+        #LOCAL {skipBell} {1};
+    };
+
+    #NOP Special handling for braces because they mess up rendering.;
+    #LOCAL {bufferValue} {%2};
+    #REPLACE {bufferValue} {%i\\x7b} {(};
+    #REPLACE {bufferValue} {%i\\x7d} {)};
+
+    #NOP Add the new item to the buffer.;
+    #IF {$BUFFERS[%1][topToBottom]} {
+        #LIST {BUFFERS[%1][contents]} {INSERT} {-1} {<088>$timestamp$bufferValue<088>};
+    }; #ELSE {
+        #LIST {BUFFERS[%1][contents]} {INSERT} {1} {<088>$timestamp$bufferValue<088>};
+    };
+
+    #IF {&BUFFERS[%1][contents][] > $BUFFERS[%1][size]} {
+        #IF {$BUFFERS[%1][topToBottom]} {
+            #LIST {BUFFERS[%1][contents]} {DELETE} {1};
+        }; #ELSE {
+            #LIST {BUFFERS[%1][contents]} {DELETE} {-1};
+        };
+    };
+
+    #NOP Update the scroll position of the buffer. Only for bottom-to-top.;
+    #IF {!$BUFFERS[%1][topToBottom]} {
+        #IF {$BUFFERS[%1][locked]} {
+            #IF {&BUFFERS[%1][contents][] < $BUFFERS[%1][size]} {
+                #MATH {BUFFERS[%1][scrollPosition]} {$BUFFERS[%1][scrollPosition] + 1};
+            };
+        }; #ELSE {
+            #VARIABLE {BUFFERS[%1][scrollPosition]} {1};
+        };
+    }; #ELSE {
+        #IF {!$BUFFERS[%1][locked]} {
+            #VARIABLE {BUFFERS[%1][scrollPosition]} {&BUFFERS[%1][contents][]};
+        };
+    };
+
+    #NOP Ring bell if necessary.;
+    #IF {$BUFFERS[%1][ringBell] && !$skipBell} {
+        _bell;
+    };
+
+    #NOP Fire update event.;
+    _eventFire {BUFFER UPDATED %1};
+};
+
+#NOP Clear a buffer.;
+#NOP %1 - Buffer name;
+#ALIAS {_bufferClear} {
+    #NOP %0;
+    #IF {&BUFFERS[%1] == 0} {
+        _warn {_bufferClear: Buffer '%1' does not exist};
+        #RETURN;
+    };
+
+    #NOP Clear the buffer.;
+    #VARIABLE {BUFFERS[%1][contents]} {};
+    #VARIABLE {BUFFERS[%1][scrollPosition]} {1};
+
+    #NOP Fire the update event since the contents have changed.;
+    _eventFire {BUFFER UPDATED %1};
+};
+
+#NOP Lock a buffer.;
+#NOP It will not scroll to the bottom when new messages are added.;
+#NOP %1 - Buffer name;
+#ALIAS {_bufferLock} {
+    #NOP %0;
+    #IF {&BUFFERS[%1] == 0} {
+        _warn {_bufferLock: Buffer '%1' does not exist};
+        #RETURN;
+    };
+
+    #VARIABLE {BUFFERS[%1][locked]} {1};
+};
+
+#NOP Unlock a buffer and scroll it to the bottom.;
+#NOP %1 - Buffer name;
+#ALIAS {_bufferUnlock} {
+    #NOP %0;
+    #IF {&BUFFERS[%1] == 0} {
+        _warn {_bufferUnlock: Buffer '%1' does not exist};
+        #RETURN;
+    };
+
+    #VARIABLE {BUFFERS[%1][locked]} {0};
+    #IF {$BUFFERS[%1][topToBottom]} {
+        #VARIABLE {BUFFERS[%1][scrollPosition]} {&BUFFERS[%1][contents][]};
+    }; #ELSE {
+        #VARIABLE {BUFFERS[%1][scrollPosition]} {1};
+    };
+
+    #NOP Since scroll position may have changed, fire the update event.;
+    _eventFire {BUFFER UPDATED %1};
+};
+
+#NOP Scroll a buffer up.;
+#NOP %1 - Buffer name;
+#NOP %2 - Lines to scroll;
+#ALIAS {_bufferUp} {
+    #NOP %0;
+    #IF {&BUFFERS[%1] == 0} {
+        _warn {_bufferUp: Buffer '%1' does not exist};
+        #RETURN;
+    };
+
+    #NOP When scrolling a buffer, lock scroll position automatically.;
+    _bufferLock {%1};
+
+    #NOP Default scroll amount is 1.;
+    #IF {%2} {
+        #LOCAL {scrollAmount} {%2};
+    }; #ELSE {
+        #LOCAL {scrollAmount} {1};
+    };
+
+    #NOP Do the math.;
+    #IF {$BUFFERS[%1][topToBottom]} {
+        #IF {$BUFFERS[%1][scrollPosition] - $scrollAmount < 1} {
+            #VARIABLE {BUFFERS[%1][scrollPosition]} {1};
+        }; #ELSE {
+            #MATH {BUFFERS[%1][scrollPosition]} {$BUFFERS[%1][scrollPosition] - $scrollAmount};
+        };
+    }; #ELSE {
+        #IF {$BUFFERS[%1][scrollPosition] + $scrollAmount > &BUFFERS[%1][contents][]} {
+            #MATH {BUFFERS[%1][scrollPosition]} {&BUFFERS[%1][contents][]};
+        }; #ELSE {
+            #MATH {BUFFERS[%1][scrollPosition]} {$BUFFERS[%1][scrollPosition] + $scrollAmount};
+        };
+    };
+
+    #NOP Fire the update event.;
+    _eventFire {BUFFER UPDATED %1};
+};
+
+#NOP Scroll a buffer down.;
+#NOP %1 - Buffer name;
+#NOP %2 - Lines to scroll;
+#ALIAS {_bufferDown} {
+    #NOP %0;
+    #IF {&BUFFERS[%1] == 0} {
+        _warn {_bufferDown: Buffer '%1' does not exist};
+        #RETURN;
+    };
+
+    #NOP When scrolling a buffer, lock scroll position automatically.;
+    _bufferLock {%1};
+
+    #NOP Default scroll amount is 1.;
+    #IF {%2} {
+        #LOCAL {scrollAmount} {%2};
+    }; #ELSE {
+        #LOCAL {scrollAmount} {1};
+    };
+
+    #NOP Do the math.;
+    #IF {$BUFFERS[%1][topToBottom]} {
+        #IF {$BUFFERS[%1][scrollPosition] + $scrollAmount > &BUFFERS[%1][contents][]} {
+            #MATH {BUFFERS[%1][scrollPosition]} {&BUFFERS[%1][contents][]};
+        }; #ELSE {
+            #MATH {BUFFERS[%1][scrollPosition]} {$BUFFERS[%1][scrollPosition] + $scrollAmount};
+        };
+    }; #ELSE {
+        #IF {$BUFFERS[%1][scrollPosition] - $scrollAmount < 1} {
+            #VARIABLE {BUFFERS[%1][scrollPosition]} {1};
+        }; #ELSE {
+            #MATH {BUFFERS[%1][scrollPosition]} {$BUFFERS[%1][scrollPosition] - $scrollAmount};
+        };
+    };
+
+    #NOP Fire the update event.;
+    _eventFire {BUFFER UPDATED %1};
+};
+
+#NOP Draw a buffer on the screen.;
+#NOP %1 - Buffer name;
+#NOP %2 - Top coordinate;
+#NOP %3 - Left coordinate;
+#NOP %4 - Bottom coordinate;
+#NOP %5 - Right coordinate;
+#ALIAS {_bufferDraw} {
+    #NOP %0;
+    #IF {&BUFFERS[%1] == 0} {
+        _warn {_bufferDraw: Buffer '%1' does not exist};
+        #RETURN;
+    };
+
+    #NOP Calculate which lines within the buffer should be rendered.;
+    #LOCAL {drawTop} {};
+    #LOCAL {drawBottom} {};
+
+    #IF {$BUFFERS[%1][topToBottom]} {
+        #MATH {drawBottom} {$BUFFERS[%1][scrollPosition]};
+        #MATH {drawTop} {$BUFFERS[%1][scrollPosition] - (%4 - %2 - 2)};
+        #IF {$drawTop < 1} {
+            #MATH {drawBottom} {$drawBottom + 1 - $drawTop};
+            #NOP Force the scroll position to avoid weirdness.;
+            #VARIABLE {BUFFERS[%1][scrollPosition]} {$drawBottom};
+            #LOCAL {drawTop} {1};
+        };
+
+        #NOP Note, leaving the curly braces off of the last argument to DRAW is;
+        #NOP intentional here!;
+        #DRAW {$BOX_COLOR} {$BOX_STYLE} {TALIGN} {BOX} {%2} {%3} {%4} {%5} $BUFFERS[%1][contents][$drawTop..$drawBottom];
+    }; #ELSE {
+        #MATH {drawTop} {$BUFFERS[%1][scrollPosition] + %4 - %2 - 2};
+        #MATH {drawBottom} {$BUFFERS[%1][scrollPosition]};
+
+        #NOP Note, leaving the curly braces off of the last argument to DRAW is;
+        #NOP intentional here!;
+        #DRAW {$BOX_COLOR} {$BOX_STYLE} {BALIGN} {BOX} {%2} {%3} {%4} {%5} $BUFFERS[%1][contents][$drawTop..$drawBottom];
+    };
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Events;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Register a general unload handler.;
+#NOP Register with a lower priority so panels and widgets get destroyed first.;
+_eventHandlerRegister {CLASS UNLOAD} {_classutilsClassUnloadHandler} {10};
+#ALIAS {_classutilsClassUnloadHandler} {
+    #NOP %0;
+    #NOP Remove any buffers that were created by that class.;
+    #LOCAL {toDestroy} {};
+    #FOREACH {$BUFFERS[%*]} {buffer} {
+        #IF {"$buffer[class]" == "%1"} {
+            #LIST {toDestroy} {INSERT} {1} {$buffer[name]};
+        };
+     };
+
+    #IF {&toDestroy[]} {
+        #LOCAL {i} {0};
+        #LOOP {1} {&toDestroy[]} {i} {
+            _bufferDestroy {$toDestroy[$i]};
+        };
+    };
+};
+
+#NOP Register the unload handler.;
+_eventHandlerRegister {CLASS UNLOAD buffer} {_bufferUnloadHandler};
+#ALIAS {_bufferUnloadHandler} {
+    #NOP %0;
+    #NOP When unloading, unregister all the buffer updated events.;
+    #FOREACH {$BUFFERS[%*]} {buffer} {
+       _eventUnregister {BUFFER UPDATED $buffer[name]};
+    };
+}
+
+#CLASS {buffer} CLOSE;

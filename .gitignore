@@ -1,0 +1,15 @@
+.python-version
+.DS_Store
+__pycache__/
+
+.vscode
+
+game.*/
+!game.samplegame/
+
+archive/
+tt
+*.tar.gz
+*.tar.gz.*
+history.txt
+update.tin

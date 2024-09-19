@@ -1,0 +1,132 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Logging class.;
+#NOP --------------------------------------------------------------------------;
+#CLASS {logging} {OPEN};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Variables.;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Format for log messages.;
+#VARIABLE {LOGGING_DEBUG_FORMAT} {<120>};
+#VARIABLE {LOGGING_INFO_FORMAT} {<160>};
+#VARIABLE {LOGGING_WARNING_FORMAT} {<130>};
+#VARIABLE {LOGGING_ERROR_FORMAT} {<110>};
+
+#NOP Specify a buffer to add log messages to.;
+#VARIABLE {LOGGING_BUFFER} {};
+
+#NOP Specify whether or not to echo logs. Handy if you're funneling them to a;
+#NOP buffer and don't need to also see them in the main feed.;
+#VARIABLE {LOGGING_ECHO} {1};
+
+#NOP Controls which log messages to display. Set via aliases.;
+#VARIABLE {LOG_LEVEL} {3};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Aliases.;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Base log message alias.;
+#NOP %1 - Message.;
+#NOP %2 - Format code.;
+#ALIAS {__logMessage} {
+    #NOP %0;
+    #NOP Get timestamp.;
+    #LOCAL {timestamp} {};
+    #FORMAT {timestamp} {[%t]} {%Y-%m-%d %H:%M:%S};
+
+    #NOP Get format code.;
+    #LOCAL {format} {%2};
+
+    #NOP Echo the message.;
+    #IF {$LOGGING_ECHO} {
+        #LINE {IGNORE} {#ECHO {$format$timestamp %1<088>}};
+    };
+
+    #NOP Add to a buffer if specified.;
+    #IF {"$LOGGING_BUFFER" != ""} {
+        _bufferAdd {$LOGGING_BUFFER} {$format$timestamp %1<088>};
+    };
+};
+
+
+#NOP Log a debug message.;
+#NOP %1 - Message.;
+#ALIAS {_debug} {
+    #NOP %0;
+    #IF {$LOG_LEVEL >= 4} {
+        __logMessage {DEBUG: %1} {$LOGGING_DEBUG_FORMAT};
+    };
+};
+
+#NOP Log an info message.;
+#NOP %1 - Message.;
+#ALIAS {_info} {
+    #NOP %0;
+    #IF {$LOG_LEVEL >= 3} {
+        __logMessage {INFO: %1} {$LOGGING_INFO_FORMAT};
+    };
+};
+
+#NOP Log a warning message.;
+#NOP %1 - Message.;
+#ALIAS {_warn} {
+    #NOP %0;
+    #IF {$LOG_LEVEL >= 2} {
+        __logMessage {WARN: %1} {$LOGGING_WARNING_FORMAT};
+    };
+};
+
+#NOP Log an error message.;
+#NOP %1 - Message.;
+#ALIAS {_error} {
+    #NOP %0;
+    #IF {$LOG_LEVEL >= 1} {
+        __logMessage {ERROR: %1} {$LOGGING_ERROR_FORMAT};
+    };
+};
+
+#NOP Set the buffer to record log messages in.;
+#NOP %1 - Name of the buffer.;
+#ALIAS {_loggingSetBuffer} {
+    #NOP %0;
+    #VARIABLE {LOGGING_BUFFER} {%1};
+    _info {Buffer for logging has been set to '%1'.};
+};
+
+#NOP Turn on logging echo.;
+#ALIAS {_loggingEchoOn} {
+    #NOP %0;
+    #VARIABLE {LOGGING_ECHO} {1};
+    _info {Logging echo is now ON.};
+};
+
+#NOP Turn off logging echo.;
+#ALIAS {_loggingEchoOff} {
+    #NOP %0;
+    #VARIABLE {LOGGING_ECHO} {0};
+    _info {Logging echo is now OFF.};
+};
+
+#NOP Set log level to error.;
+#ALIAS {_logLevelError} {
+    #VARIABLE {LOG_LEVEL} {1};
+};
+
+#NOP Set log level to warning.;
+#ALIAS {_logLevelWarning} {
+    #VARIABLE {LOG_LEVEL} {2};
+};
+
+#NOP Set log level to info.;
+#ALIAS {_logLevelInfo} {
+    #VARIABLE {LOG_LEVEL} {3};
+};
+
+#NOP Set log level to debug.;
+#ALIAS {_logLevelDebug} {
+    #VARIABLE {LOG_LEVEL} {4};
+};
+
+#CLASS {logging} {CLOSE};

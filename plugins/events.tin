@@ -1,0 +1,653 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Event hooks class;
+#NOP ;
+#NOP Dependencies:;
+#NOP - logging;
+#NOP ;
+#NOP NOTE ABOUT WRITING EVENT HANDLERS;
+#NOP ---------------------------------;
+#NOP When writing an event handler to be triggered through this system, you;
+#NOP should always expect %1 to hold the name of the event. Event arguments;
+#NOP start at %2.;
+#NOP --------------------------------------------------------------------------;
+#CLASS {events} {OPEN};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Variables.;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Store a table of all registered events and handlers. Event names are the;
+#NOP keys, and the values are each a list of handlers sorted by priority.;
+#VARIABLE {EVENTS} {};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Event registration;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Determine if an event is registered.;
+#NOP %1 - Event name.;
+#FUNCTION {__eventIsRegistered} {
+    #IF {&EVENTS[%1] == 0} {
+        #RETURN 0;
+    }; #ELSE {
+        #RETURN 1;
+    };
+}
+
+#NOP Register an event.;
+#NOP %1 - Event name;
+#ALIAS {_eventRegister} {
+    #NOP %0;
+    #NOP Make sure the event isn't already registered.;
+    #IF {@__eventIsRegistered{%1} == 1} {
+        _warn {_eventRegister: event '%1' is already registered.};
+        #RETURN;
+    };
+
+    #VARIABLE {EVENTS[%1]} {
+        {name} {%1}
+        {class} {$ACTIVE_CLASS}
+        {handlers} {}
+    };
+};
+
+#NOP Unregister an event.;
+#NOP %1 - Event Name;
+#NOP NOTE: Technically you can unregister system events this way and break lots;
+#NOP       of stuff. Don't do it!;
+#ALIAS {_eventUnregister} {
+    #NOP %0;
+    #NOP Make sure the event is registered.;
+    #IF {@__eventIsRegistered{%1} == 0} {
+        _warn {_eventUnregister: Event '%1' is not registered.};
+        #RETURN;
+    };
+
+    #UNVARIABLE {EVENTS[%1]};
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Event handler registration;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Get the index of an event handler in its event's list of handlers.;
+#NOP %1 - Event name;
+#NOP %2 - Handler alias;
+#FUNCTION {__eventHandlerGetIndex} {
+    #NOP Make sure the event is registered.;
+    #IF {@__eventIsRegistered{%1} == 0} {
+        #RETURN 0;
+    };
+
+    #IF {&EVENTS[%1][handlers][]} {
+        #LOCAL {i} {0};
+        #LOOP {1} {&EVENTS[%1][handlers][]} {i} {
+            #IF {"$EVENTS[%1][handlers][$i][alias]" === "%2"} {
+                #RETURN $i;
+            };
+        };
+    };
+
+    #RETURN 0;
+};
+
+#NOP Register an event handler.;
+#NOP %1 - Event name;
+#NOP %2 - Handler alias;
+#NOP %3 - Priority (default 5);
+#ALIAS {_eventHandlerRegister} {
+    #NOP %0;
+    #NOP Make sure the event is registered.;
+    #IF {@__eventIsRegistered{%1} == 0} {
+        _warn {_eventHandlerRegister: Event '%1' is not registered.};
+        #RETURN;
+    };
+
+    #NOP Make sure a handler with this name isn't already registered.;
+    #LOCAL {index} {@__eventHandlerGetIndex{{%1}; {%2}}};
+    #IF {$index > 0} {
+        _warn {_eventHandlerRegister: Handler '%2' for event '%1' is already registered.};
+        #RETURN;
+    };
+
+    #NOP Default value for priority if not supplied.;
+    #IF {%3 > 0} {
+        #LOCAL {priority} {%3};
+    }; #ELSE {
+        #LOCAL {priority} {5};
+    };
+
+    #NOP Register the handler.;
+    #LIST {EVENTS[%1][handlers]} {INSERT} {-1} {
+        {alias} {%2}
+        {class} {$ACTIVE_CLASS}
+        {priority} {$priority}
+    };
+
+    #NOP Sort the handlers by priority.;
+    #LIST {EVENTS[%1][handlers]} {INDEXATE} {priority};
+    #LIST {EVENTS[%1][handlers]} {ORDER};
+};
+
+#NOP Unregister an event handler.;
+#NOP %1 - Event name;
+#NOP %2 - Handler alias;
+#ALIAS {_eventHandlerUnregister} {
+    #NOP %0;
+    #NOP Make sure the event is registered.;
+    #IF {@__eventIsRegistered{%1} == 0} {
+        _warn {_eventHandlerUnregister: Event '%1' is not registered.};
+        #RETURN;
+    };
+
+    #NOP Find the index of the handler.;
+    #LOCAL {index} {@__eventHandlerGetIndex{{%1}; {%2}}};
+    #IF {$index <= 0} {
+        _warn {_eventHandlerUnregister: No handler '%2' for event '%1' is registered.};
+        #RETURN;
+    };
+
+    #NOP Remove the handler.;
+    #LIST {EVENTS[%1][handlers]} {DELETE} {$index};
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Event firing code;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Fire an event.;
+#NOP %1 - Event name;
+#NOP %2-%11 - Event arguments;
+#ALIAS {_eventFire} {
+    #NOP %0;
+    #NOP Make sure the event is registered.;
+    #IF {@__eventIsRegistered{%1} == 0} {
+        _warn {_eventFire: Event '%1' is not registered.};
+        #RETURN;
+    };
+
+    #NOP Make sure there are handlers registered.;
+    #IF {&EVENTS[%1][handlers][] == 0} {
+        #RETURN;
+    };
+
+    #NOP Loop through all handlers for this event.;
+    #NOP Note that the variable names are really long to reduce the risk of an;
+    #NOP event handler block trying to use the same ones.;
+    #LOCAL {__eventFireIterator} {0};
+    #LOOP {1} {&EVENTS[%1][handlers][]} {__eventFireIterator} {
+        #LOCAL {__eventFireAlias} {$EVENTS[%1][handlers][$__eventFireIterator][alias]};
+        $__eventFireAlias {%2} {%3} {%4} {%5} {%6} {%7} {%8} {%9} {%10} {%11};
+    };
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Event handlers for system events;
+#NOP --------------------------------------------------------------------------;
+
+_eventRegister {SCREEN RESIZE};
+#EVENT {SCREEN RESIZE} {
+    _eventFire {SCREEN RESIZE} {%0} {%1} {%2} {%3};
+};
+
+_eventRegister {SESSION ACTIVATED};
+#EVENT {SESSION ACTIVATED} {
+    _eventFire {SESSION ACTIVATED} {%0};
+};
+
+_eventRegister {SESSION CONNECTED};
+#EVENT {SESSION CONNECTED} {
+    _eventFire {SESSION CONNECTED} {%0} {%1} {%2} {%3} {%4};
+};
+
+_eventRegister {SESSION DISCONNECTED};
+#EVENT {SESSION DISCONNECTED} {
+    _eventFire {SESSION DISCONNECTED} {%0} {%1} {%2} {%3};
+};
+
+_eventRegister {IAC WILL GMCP};
+#EVENT {IAC WILL GMCP} {
+    _eventFire {IAC WILL GMCP} {%0};
+};
+
+_eventRegister {IAC SB GMCP char.vitals IAC SE};
+#EVENT {IAC SB GMCP char.vitals IAC SE} {
+    _eventFire {IAC SB GMCP char.vitals IAC SE} {%0};
+};
+
+_eventRegister {IAC SB GMCP char.base IAC SE};
+#EVENT {IAC SB GMCP char.base IAC SE} {
+    _eventFire {IAC SB GMCP char.base IAC SE} {%0};
+};
+
+_eventRegister {IAC SB GMCP char.maxstats IAC SE};
+#EVENT {IAC SB GMCP char.maxstats IAC SE} {
+    _eventFire {IAC SB GMCP char.maxstats IAC SE} {%0};
+};
+
+_eventRegister {IAC SB GMCP char.stats IAC SE};
+#EVENT {IAC SB GMCP char.stats IAC SE} {
+    _eventFire {IAC SB GMCP char.stats IAC SE} {%0};
+};
+
+_eventRegister {IAC SB GMCP char.status IAC SE};
+#EVENT {IAC SB GMCP char.status IAC SE} {
+    _eventFire {IAC SB GMCP char.status IAC SE} {%0};
+};
+
+_eventRegister {IAC SB GMCP char.worth IAC SE};
+#EVENT {IAC SB GMCP char.worth IAC SE} {
+    _eventFire {IAC SB GMCP char.worth IAC SE} {%0};
+};
+
+_eventRegister {IAC SB GMCP char.clan IAC SE};
+#EVENT {IAC SB GMCP char.clan IAC SE} {
+    _eventFire {IAC SB GMCP char.clan IAC SE} {%0};
+};
+
+_eventRegister {IAC SB GMCP char.good_chance IAC SE};
+#EVENT {IAC SB GMCP char.good_chance IAC SE} {
+    _eventFire {IAC SB GMCP char.good_chance IAC SE} {%0};
+};
+
+_eventRegister {IAC SB GMCP char.cast_finished IAC SE};
+#EVENT {IAC SB GMCP char.cast_finished IAC SE} {
+    _eventFire {IAC SB GMCP char.cast_finished IAC SE} {%0};
+};
+
+_eventRegister {IAC SB GMCP char.items IAC SE};
+#EVENT {IAC SB GMCP char.items IAC SE} {
+    _eventFire {IAC SB GMCP char.items IAC SE} {%0};
+};
+
+_eventRegister {IAC SB GMCP char.items.reagents IAC SE};
+#EVENT {IAC SB GMCP char.items.reagents IAC SE} {
+    _eventFire {IAC SB GMCP char.items.reagents IAC SE} {%0};
+};
+
+_eventRegister {IAC SB GMCP room.info IAC SE};
+#EVENT {IAC SB GMCP room.info IAC SE} {
+    _eventFire {IAC SB GMCP room.info IAC SE} {%0};
+};
+
+_eventRegister {MAP ROOM SHORT-CLICKED MOUSE BUTTON ONE};
+#EVENT {MAP ROOM SHORT-CLICKED MOUSE BUTTON ONE} {
+    _eventFire {MAP ROOM SHORT-CLICKED MOUSE BUTTON ONE} {%0} {%1} {%2} {%3} {%4} {%5};
+};
+
+_eventRegister {SHORT-CLICKED MOUSE BUTTON ONE};
+#EVENT {SHORT-CLICKED MOUSE BUTTON ONE} {
+    _eventFire {SHORT-CLICKED MOUSE BUTTON ONE} {%0} {%1} {%2} {%3} {%4} {%5};
+};
+
+_eventRegister {SCROLLED MOUSE WHEEL UP};
+#EVENT {SCROLLED MOUSE WHEEL UP} {
+    _eventFire {SCROLLED MOUSE WHEEL UP} {%0} {%1} {%2} {%3} {%4} {%5};
+};
+
+_eventRegister {SCROLLED MOUSE WHEEL DOWN};
+#EVENT {SCROLLED MOUSE WHEEL DOWN} {
+    _eventFire {SCROLLED MOUSE WHEEL DOWN} {%0} {%1} {%2} {%3} {%4} {%5};
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Numpad events.;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Without modifiers.;
+_eventRegister {NUMPAD 0};
+#MACRO {\eOp} {_eventFire {NUMPAD 0} {%0};};
+_eventRegister {NUMPAD 1};
+#MACRO {\eOq} {_eventFire {NUMPAD 1} {%0};};
+_eventRegister {NUMPAD 2};
+#MACRO {\eOr} {_eventFire {NUMPAD 2} {%0};};
+_eventRegister {NUMPAD 3};
+#MACRO {\eOs} {_eventFire {NUMPAD 3} {%0};};
+_eventRegister {NUMPAD 4};
+#MACRO {\eOt} {_eventFire {NUMPAD 4} {%0};};
+_eventRegister {NUMPAD 5};
+#MACRO {\eOu} {_eventFire {NUMPAD 5} {%0};};
+_eventRegister {NUMPAD 6};
+#MACRO {\eOv} {_eventFire {NUMPAD 6} {%0};};
+_eventRegister {NUMPAD 7};
+#MACRO {\eOw} {_eventFire {NUMPAD 7} {%0};};
+_eventRegister {NUMPAD 8};
+#MACRO {\eOx} {_eventFire {NUMPAD 8} {%0};};
+_eventRegister {NUMPAD 9};
+#MACRO {\eOy} {_eventFire {NUMPAD 9} {%0};};
+_eventRegister {NUMPAD PERIOD};
+#MACRO {\eOn} {_eventFire {NUMPAD PERIOD} {%0};};
+_eventRegister {NUMPAD PLUS};
+#MACRO {\eOk} {_eventFire {NUMPAD PLUS} {%0};};
+_eventRegister {NUMPAD MINUS};
+#MACRO {\eOm} {_eventFire {NUMPAD MINUS} {%0};};
+_eventRegister {NUMPAD ASTERISK};
+#MACRO {\eOj} {_eventFire {NUMPAD ASTERISK} {%0};};
+_eventRegister {NUMPAD SLASH};
+#MACRO {\eOo} {_eventFire {NUMPAD SLASH} {%0};};
+_eventRegister {NUMPAD EQUALS};
+#MACRO {\eOX} {_eventFire {NUMPAD EQUALS} {%0};};
+
+#NOP With SHIFT.;
+_eventRegister {NUMPAD SHIFT 0};
+#MACRO {\eO2p} {_eventFire {NUMPAD SHIFT 0} {%0};};
+_eventRegister {NUMPAD SHIFT 1};
+#MACRO {\eO2q} {_eventFire {NUMPAD SHIFT 1} {%0};};
+_eventRegister {NUMPAD SHIFT 2};
+#MACRO {\eO2r} {_eventFire {NUMPAD SHIFT 2} {%0};};
+_eventRegister {NUMPAD SHIFT 3};
+#MACRO {\eO2s} {_eventFire {NUMPAD SHIFT 3} {%0};};
+_eventRegister {NUMPAD SHIFT 4};
+#MACRO {\eO2t} {_eventFire {NUMPAD SHIFT 4} {%0};};
+_eventRegister {NUMPAD SHIFT 5};
+#MACRO {\eO2u} {_eventFire {NUMPAD SHIFT 5} {%0};};
+_eventRegister {NUMPAD SHIFT 6};
+#MACRO {\eO2v} {_eventFire {NUMPAD SHIFT 6} {%0};};
+_eventRegister {NUMPAD SHIFT 7};
+#MACRO {\eO2w} {_eventFire {NUMPAD SHIFT 7} {%0};};
+_eventRegister {NUMPAD SHIFT 8};
+#MACRO {\eO2x} {_eventFire {NUMPAD SHIFT 8} {%0};};
+_eventRegister {NUMPAD SHIFT 9};
+#MACRO {\eO2y} {_eventFire {NUMPAD SHIFT 9} {%0};};
+_eventRegister {NUMPAD SHIFT PERIOD};
+#MACRO {\eO2n} {_eventFire {NUMPAD SHIFT PERIOD} {%0};};
+_eventRegister {NUMPAD SHIFT PLUS};
+#MACRO {\eO2k} {_eventFire {NUMPAD SHIFT PLUS} {%0};};
+_eventRegister {NUMPAD SHIFT MINUS};
+#MACRO {\eO2m} {_eventFire {NUMPAD SHIFT MINUS} {%0};};
+_eventRegister {NUMPAD SHIFT ASTERISK};
+#MACRO {\eO2j} {_eventFire {NUMPAD SHIFT ASTERISK} {%0};};
+_eventRegister {NUMPAD SHIFT SLASH};
+#MACRO {\eO2o} {_eventFire {NUMPAD SHIFT SLASH} {%0};};
+_eventRegister {NUMPAD SHIFT EQUALS};
+#MACRO {\eO2X} {_eventFire {NUMPAD SHIFT EQUALS} {%0};};
+
+#NOP With CTRL.;
+_eventRegister {NUMPAD CTRL 0};
+#MACRO {\eO5p} {_eventFire {NUMPAD CTRL 0} {%0};};
+_eventRegister {NUMPAD CTRL 1};
+#MACRO {\eO5q} {_eventFire {NUMPAD CTRL 1} {%0};};
+_eventRegister {NUMPAD CTRL 2};
+#MACRO {\eO5r} {_eventFire {NUMPAD CTRL 2} {%0};};
+_eventRegister {NUMPAD CTRL 3};
+#MACRO {\eO5s} {_eventFire {NUMPAD CTRL 3} {%0};};
+_eventRegister {NUMPAD CTRL 4};
+#MACRO {\eO5t} {_eventFire {NUMPAD CTRL 4} {%0};};
+_eventRegister {NUMPAD CTRL 5};
+#MACRO {\eO5u} {_eventFire {NUMPAD CTRL 5} {%0};};
+_eventRegister {NUMPAD CTRL 6};
+#MACRO {\eO5v} {_eventFire {NUMPAD CTRL 6} {%0};};
+_eventRegister {NUMPAD CTRL 7};
+#MACRO {\eO5w} {_eventFire {NUMPAD CTRL 7} {%0};};
+_eventRegister {NUMPAD CTRL 8};
+#MACRO {\eO5x} {_eventFire {NUMPAD CTRL 8} {%0};};
+_eventRegister {NUMPAD CTRL 9};
+#MACRO {\eO5y} {_eventFire {NUMPAD CTRL 9} {%0};};
+_eventRegister {NUMPAD CTRL PERIOD};
+#MACRO {\eO5n} {_eventFire {NUMPAD CTRL PERIOD} {%0};};
+_eventRegister {NUMPAD CTRL PLUS};
+#MACRO {\eO5k} {_eventFire {NUMPAD CTRL PLUS} {%0};};
+_eventRegister {NUMPAD CTRL MINUS};
+#MACRO {\eO5m} {_eventFire {NUMPAD CTRL MINUS} {%0};};
+_eventRegister {NUMPAD CTRL ASTERISK};
+#MACRO {\eO5j} {_eventFire {NUMPAD CTRL ASTERISK} {%0};};
+_eventRegister {NUMPAD CTRL SLASH};
+#MACRO {\eO5o} {_eventFire {NUMPAD CTRL SLASH} {%0};};
+_eventRegister {NUMPAD CTRL EQUALS};
+#MACRO {\eO5X} {_eventFire {NUMPAD CTRL EQUALS} {%0};};
+
+#NOP With ALT.;
+_eventRegister {NUMPAD ALT 0};
+#MACRO {\eO9p} {_eventFire {NUMPAD ALT 0} {%0};};
+_eventRegister {NUMPAD ALT 1};
+#MACRO {\eO9q} {_eventFire {NUMPAD ALT 1} {%0};};
+_eventRegister {NUMPAD ALT 2};
+#MACRO {\eO9r} {_eventFire {NUMPAD ALT 2} {%0};};
+_eventRegister {NUMPAD ALT 3};
+#MACRO {\eO9s} {_eventFire {NUMPAD ALT 3} {%0};};
+_eventRegister {NUMPAD ALT 4};
+#MACRO {\eO9t} {_eventFire {NUMPAD ALT 4} {%0};};
+_eventRegister {NUMPAD ALT 5};
+#MACRO {\eO9u} {_eventFire {NUMPAD ALT 5} {%0};};
+_eventRegister {NUMPAD ALT 6};
+#MACRO {\eO9v} {_eventFire {NUMPAD ALT 6} {%0};};
+_eventRegister {NUMPAD ALT 7};
+#MACRO {\eO9w} {_eventFire {NUMPAD ALT 7} {%0};};
+_eventRegister {NUMPAD ALT 8};
+#MACRO {\eO9x} {_eventFire {NUMPAD ALT 8} {%0};};
+_eventRegister {NUMPAD ALT 9};
+#MACRO {\eO9y} {_eventFire {NUMPAD ALT 9} {%0};};
+_eventRegister {NUMPAD ALT PERIOD};
+#MACRO {\eO9n} {_eventFire {NUMPAD ALT PERIOD} {%0};};
+_eventRegister {NUMPAD ALT PLUS};
+#MACRO {\eO9k} {_eventFire {NUMPAD ALT PLUS} {%0};};
+_eventRegister {NUMPAD ALT MINUS};
+#MACRO {\eO9m} {_eventFire {NUMPAD ALT MINUS} {%0};};
+_eventRegister {NUMPAD ALT ASTERISK};
+#MACRO {\eO9j} {_eventFire {NUMPAD ALT ASTERISK} {%0};};
+_eventRegister {NUMPAD ALT SLASH};
+#MACRO {\eO9o} {_eventFire {NUMPAD ALT SLASH} {%0};};
+_eventRegister {NUMPAD ALT EQUALS};
+#MACRO {\eO9X} {_eventFire {NUMPAD ALT EQUALS} {%0};};
+
+#NOP With CTRL+ALT.;
+_eventRegister {NUMPAD CTRL ALT 0};
+#MACRO {\eO13p} {_eventFire {NUMPAD CTRL ALT 0} {%0};};
+_eventRegister {NUMPAD CTRL ALT 1};
+#MACRO {\eO13q} {_eventFire {NUMPAD CTRL ALT 1} {%0};};
+_eventRegister {NUMPAD CTRL ALT 2};
+#MACRO {\eO13r} {_eventFire {NUMPAD CTRL ALT 2} {%0};};
+_eventRegister {NUMPAD CTRL ALT 3};
+#MACRO {\eO13s} {_eventFire {NUMPAD CTRL ALT 3} {%0};};
+_eventRegister {NUMPAD CTRL ALT 4};
+#MACRO {\eO13t} {_eventFire {NUMPAD CTRL ALT 4} {%0};};
+_eventRegister {NUMPAD CTRL ALT 5};
+#MACRO {\eO13u} {_eventFire {NUMPAD CTRL ALT 5} {%0};};
+_eventRegister {NUMPAD CTRL ALT 6};
+#MACRO {\eO13v} {_eventFire {NUMPAD CTRL ALT 6} {%0};};
+_eventRegister {NUMPAD CTRL ALT 7};
+#MACRO {\eO13w} {_eventFire {NUMPAD CTRL ALT 7} {%0};};
+_eventRegister {NUMPAD CTRL ALT 8};
+#MACRO {\eO13x} {_eventFire {NUMPAD CTRL ALT 8} {%0};};
+_eventRegister {NUMPAD CTRL ALT 9};
+#MACRO {\eO13y} {_eventFire {NUMPAD CTRL ALT 9} {%0};};
+_eventRegister {NUMPAD CTRL ALT PERIOD};
+#MACRO {\eO13n} {_eventFire {NUMPAD CTRL ALT PERIOD} {%0};};
+_eventRegister {NUMPAD CTRL ALT PLUS};
+#MACRO {\eO13k} {_eventFire {NUMPAD CTRL ALT PLUS} {%0};};
+_eventRegister {NUMPAD CTRL ALT MINUS};
+#MACRO {\eO13m} {_eventFire {NUMPAD CTRL ALT MINUS} {%0};};
+_eventRegister {NUMPAD CTRL ALT ASTERISK};
+#MACRO {\eO13j} {_eventFire {NUMPAD CTRL ALT ASTERISK} {%0};};
+_eventRegister {NUMPAD CTRL ALT SLASH};
+#MACRO {\eO13o} {_eventFire {NUMPAD CTRL ALT SLASH} {%0};};
+_eventRegister {NUMPAD CTRL ALT EQUALS};
+#MACRO {\eO13X} {_eventFire {NUMPAD CTRL ALT EQUALS} {%0};};
+
+#NOP With SHIFT+ALT.;
+_eventRegister {NUMPAD SHIFT ALT 0};
+#MACRO {\eO10p} {_eventFire {NUMPAD SHIFT ALT 0} {%0};};
+_eventRegister {NUMPAD SHIFT ALT 1};
+#MACRO {\eO10q} {_eventFire {NUMPAD SHIFT ALT 1} {%0};};
+_eventRegister {NUMPAD SHIFT ALT 2};
+#MACRO {\eO10r} {_eventFire {NUMPAD SHIFT ALT 2} {%0};};
+_eventRegister {NUMPAD SHIFT ALT 3};
+#MACRO {\eO10s} {_eventFire {NUMPAD SHIFT ALT 3} {%0};};
+_eventRegister {NUMPAD SHIFT ALT 4};
+#MACRO {\eO10t} {_eventFire {NUMPAD SHIFT ALT 4} {%0};};
+_eventRegister {NUMPAD SHIFT ALT 5};
+#MACRO {\eO10u} {_eventFire {NUMPAD SHIFT ALT 5} {%0};};
+_eventRegister {NUMPAD SHIFT ALT 6};
+#MACRO {\eO10v} {_eventFire {NUMPAD SHIFT ALT 6} {%0};};
+_eventRegister {NUMPAD SHIFT ALT 7};
+#MACRO {\eO10w} {_eventFire {NUMPAD SHIFT ALT 7} {%0};};
+_eventRegister {NUMPAD SHIFT ALT 8};
+#MACRO {\eO10x} {_eventFire {NUMPAD SHIFT ALT 8} {%0};};
+_eventRegister {NUMPAD SHIFT ALT 9};
+#MACRO {\eO10y} {_eventFire {NUMPAD SHIFT ALT 9} {%0};};
+_eventRegister {NUMPAD SHIFT ALT PERIOD};
+#MACRO {\eO10n} {_eventFire {NUMPAD SHIFT ALT PERIOD} {%0};};
+_eventRegister {NUMPAD SHIFT ALT PLUS};
+#MACRO {\eO10k} {_eventFire {NUMPAD SHIFT ALT PLUS} {%0};};
+_eventRegister {NUMPAD SHIFT ALT MINUS};
+#MACRO {\eO10m} {_eventFire {NUMPAD SHIFT ALT MINUS} {%0};};
+_eventRegister {NUMPAD SHIFT ALT ASTERISK};
+#MACRO {\eO10j} {_eventFire {NUMPAD SHIFT ALT ASTERISK} {%0};};
+_eventRegister {NUMPAD SHIFT ALT SLASH};
+#MACRO {\eO10o} {_eventFire {NUMPAD SHIFT ALT SLASH} {%0};};
+_eventRegister {NUMPAD SHIFT ALT EQUALS};
+#MACRO {\eO10X} {_eventFire {NUMPAD SHIFT ALT EQUALS} {%0};};
+
+#NOP With CTRL+SHIFT.;
+_eventRegister {NUMPAD CTRL SHIFT 0};
+#MACRO {\eO6p} {_eventFire {NUMPAD CTRL SHIFT 0} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT 1};
+#MACRO {\eO6q} {_eventFire {NUMPAD CTRL SHIFT 1} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT 2};
+#MACRO {\eO6r} {_eventFire {NUMPAD CTRL SHIFT 2} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT 3};
+#MACRO {\eO6s} {_eventFire {NUMPAD CTRL SHIFT 3} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT 4};
+#MACRO {\eO6t} {_eventFire {NUMPAD CTRL SHIFT 4} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT 5};
+#MACRO {\eO6u} {_eventFire {NUMPAD CTRL SHIFT 5} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT 6};
+#MACRO {\eO6v} {_eventFire {NUMPAD CTRL SHIFT 6} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT 7};
+#MACRO {\eO6w} {_eventFire {NUMPAD CTRL SHIFT 7} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT 8};
+#MACRO {\eO6x} {_eventFire {NUMPAD CTRL SHIFT 8} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT 9};
+#MACRO {\eO6y} {_eventFire {NUMPAD CTRL SHIFT 9} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT PERIOD};
+#MACRO {\eO6n} {_eventFire {NUMPAD CTRL SHIFT PERIOD} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT PLUS};
+#MACRO {\eO6k} {_eventFire {NUMPAD CTRL SHIFT PLUS} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT MINUS};
+#MACRO {\eO6m} {_eventFire {NUMPAD CTRL SHIFT MINUS} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ASTERISK};
+#MACRO {\eO6j} {_eventFire {NUMPAD CTRL SHIFT ASTERISK} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT SLASH};
+#MACRO {\eO6o} {_eventFire {NUMPAD CTRL SHIFT SLASH} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT EQUALS};
+#MACRO {\eO6X} {_eventFire {NUMPAD CTRL SHIFT EQUALS} {%0};};
+
+#NOP With CTRL+SHIFT+ALT.;
+_eventRegister {NUMPAD CTRL SHIFT ALT 0};
+#MACRO {\eO14p} {_eventFire {NUMPAD CTRL SHIFT ALT 0} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT 1};
+#MACRO {\eO14q} {_eventFire {NUMPAD CTRL SHIFT ALT 1} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT 2};
+#MACRO {\eO14r} {_eventFire {NUMPAD CTRL SHIFT ALT 2} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT 3};
+#MACRO {\eO14s} {_eventFire {NUMPAD CTRL SHIFT ALT 3} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT 4};
+#MACRO {\eO14t} {_eventFire {NUMPAD CTRL SHIFT ALT 4} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT 5};
+#MACRO {\eO14u} {_eventFire {NUMPAD CTRL SHIFT ALT 5} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT 6};
+#MACRO {\eO14v} {_eventFire {NUMPAD CTRL SHIFT ALT 6} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT 7};
+#MACRO {\eO14w} {_eventFire {NUMPAD CTRL SHIFT ALT 7} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT 8};
+#MACRO {\eO14x} {_eventFire {NUMPAD CTRL SHIFT ALT 8} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT 9};
+#MACRO {\eO14y} {_eventFire {NUMPAD CTRL SHIFT ALT 9} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT PERIOD};
+#MACRO {\eO14n} {_eventFire {NUMPAD CTRL SHIFT ALT PERIOD} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT PLUS};
+#MACRO {\eO14k} {_eventFire {NUMPAD CTRL SHIFT ALT PLUS} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT MINUS};
+#MACRO {\eO14m} {_eventFire {NUMPAD CTRL SHIFT ALT MINUS} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT ASTERISK};
+#MACRO {\eO14j} {_eventFire {NUMPAD CTRL SHIFT ALT ASTERISK} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT SLASH};
+#MACRO {\eO14o} {_eventFire {NUMPAD CTRL SHIFT ALT SLASH} {%0};};
+_eventRegister {NUMPAD CTRL SHIFT ALT EQUALS};
+#MACRO {\eO14X} {_eventFire {NUMPAD CTRL SHIFT ALT EQUALS} {%0};};
+
+#NOP --------------------------------------------------------------------------;
+#NOP MXP events;
+#NOP --------------------------------------------------------------------------;
+
+_eventRegister {IAC WILL MXP};
+#EVENT {IAC WILL MXP} {
+    _eventFire {IAC WILL MXP} {%0};
+}
+
+_eventRegister {IAC DO MXP};
+#EVENT {IAC DO MXP} {
+    _eventFire {IAC DO MXP} {%0};
+};
+
+_eventRegister {PRESSED LINK MXP MOUSE BUTTON ONE};
+#EVENT {PRESSED LINK MXP MOUSE BUTTON ONE} {
+    _eventFire {PRESSED LINK MXP MOUSE BUTTON ONE} {%0} {%1} {%2} {%3} {%4} {%5};
+};
+
+_eventRegister {PRESSED LINK MXP MOUSE BUTTON THREE};
+#EVENT {PRESSED LINK MXP MOUSE BUTTON THREE} {
+    _eventFire {PRESSED LINK MXP MOUSE BUTTON THREE} {%0} {%1} {%2} {%3} {%4} {%5};
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Class events;
+#NOP --------------------------------------------------------------------------;
+_eventRegister {CLASS ACTIVATED};
+#EVENT {CLASS ACTIVATED} {
+    _eventFire {CLASS ACTIVATED} {%0};
+};
+
+_eventRegister {CLASS DEACTIVATED};
+#EVENT {CLASS DEACTIVATED} {
+    _eventFire {CLASS DEACTIVATED} {%0};
+};
+
+#NOP Custom class load and unload.;
+_eventRegister {CLASS LOAD};
+_eventRegister {CLASS UNLOAD};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Register event handlers for automatically unregistereing event handlers.;
+#NOP --------------------------------------------------------------------------;
+_eventHandlerRegister {CLASS UNLOAD} {_eventsClassUnloadHandler} {20};
+#ALIAS {_eventsClassUnloadHandler} {
+    #NOP %0;
+    #NOP Remove any events that were created by that class.;
+    #LOCAL {i} {0};
+    #LOCAL {toDestroy} {};
+    #FOREACH {$EVENTS[%*]} {event} {
+        #IF {"$event[class]" == "%1"} {
+            #LIST {toDestroy} {INSERT} {1} {$event[name]};
+        };
+     };
+
+    #IF {&toDestroy[]} {
+        #LOOP {1} {&toDestroy[]} {i} {
+            _eventUnregister {$toDestroy[$i]};
+        };
+    };
+
+    #NOP Remove any event handlers that were created by that class.;
+    #LOCAL {toDestroy} {};
+    #FOREACH {$EVENTS[%*]} {event} {
+        #IF {&event[handlers][]} {
+            #LOOP {1} {&event[handlers][]} {i} {
+                #IF {"$event[handlers][$i][class]" == "%1"} {
+                    #LIST {toDestroy} {INSERT} {1} {
+                        {event} {$event[name]}
+                        {alias} {$event[handlers][$i][alias]}
+                    };
+                };
+            };
+        };
+    };
+
+    #IF {&toDestroy[]} {
+        #LOOP {1} {&toDestroy[]} {i} {
+            _eventHandlerUnregister {$toDestroy[$i][event]} {$toDestroy[$i][alias]};
+        };
+    };
+};
+
+#CLASS {events} {CLOSE};

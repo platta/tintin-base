@@ -1,0 +1,170 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Widget class.;
+#NOP ;
+#NOP Dependencies:;
+#NOP - events;
+#NOP - logging;
+#NOP --------------------------------------------------------------------------;
+#CLASS {widget} {OPEN};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Variables;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Keep track of all widgets.;
+#VARIABLE {WIDGETS} {};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Aliases;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Create a widget.;
+#NOP %1 - Widget name;
+#NOP %2 - Alias to invoke to draw the widget;
+#NOP %3 - Minimum width (default 0);
+#NOP %4 - Minimum height {default 0};
+#ALIAS {_widgetCreate} {
+    #NOP %0;
+    #IF {&WIDGETS[%1]} {
+        _warn {_widgetCreate: Widget '%1' already exists.};
+        #RETURN;
+    };
+
+    #LOCAL {minWidth} {0};
+    #IF {"%3" != ""} {
+        #LOCAL {minWidth} {%3};
+    };
+
+    #LOCAL {minHeight} {0};
+    #IF {"%4" != ""} {
+        #LOCAL {minHeight} {%4};
+    };
+
+    #VARIABLE {WIDGETS[%1]} {
+        {name} {%1}
+        {class} {$ACTIVE_CLASS}
+        {alias} {%2}
+        {minWidth} {$minWidth}
+        {minHeight} {$minHeight}
+        {data} {}
+    };
+
+    _eventRegister {WIDGET UPDATED %1};
+    _eventRegister {WIDGET CLICKED %1};
+    _eventRegister {WIDGET SCROLLED %1};
+};
+
+#NOP Destroy a widget.;
+#NOP %1 - Widget name;
+#ALIAS {_widgetDestroy} {
+    #NOP %0;
+    #IF {!&WIDGETS[%1]} {
+        _warn {_widgetDestroy: Widget '%1' does not exist.};
+        #RETURN;
+    };
+
+    #UNVARIABLE {WIDGETS[%1]};
+    _eventUnregister {WIDGET UPDATED %1};
+    _eventUnregister {WIDGET CLICKED %1};
+    _eventUnregister {WIDGET SCROLLED %1};
+};
+
+#NOP Update a widget's data.;
+#NOP %1 - Widget name;
+#NOP %2 - Widget data;
+#ALIAS {_widgetUpdateData} {
+    #NOP %0;
+    #IF {!&WIDGETS[%1]} {
+        _warn {_widgetUpdateData: Widget '%1' does not exist.};
+        #RETURN;
+    };
+
+    #VARIABLE {WIDGETS[%1][data]} {%2};
+    _eventFire {WIDGET UPDATED %1};
+};
+
+#NOP Draw a widget.;
+#NOP %1 - Widget name;
+#NOP %2 - Top coordinate;
+#NOP %3 - Left coordinate;
+#NOP %4 - Bottom coordinate;
+#NOP %5 - Right coordinate;
+#ALIAS {_widgetDraw} {
+    #NOP %0;
+    #IF {!&WIDGETS[%1]} {
+        _warn {_widgetDraw: Widget '%1' does not exist.};
+        #RETURN;
+    };
+
+    #NOP Make sure we've got enough room to render the widget.;
+    #LOCAL {width} {};
+    #MATH {width} {%5 - %3 + 1};
+    #LOCAL {height} {};
+    #MATH {height} {%4 - %2 + 1};
+    #IF {$width < $WIDGETS[%1][minWidth] || $height < $WIDGETS[%1][minHeight]} {
+        _warn {widgetDraw: Unable to draw widget %1 in box %2 %3 %4 %5, minimum size is ${WIDGETS[%1][minWidth]}x${WIDGETS[%1][minHeight]}};
+        #RETURN;
+    };
+
+    #NOP Invoke the widget alias, passing in the data and coordinates.;
+    $WIDGETS[%1][alias] {$WIDGETS[%1][data]} {%2} {%3} {%4} {%5};
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Functions;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Get a widget's data.;
+#NOP %1 - Widget name;
+#FUNCTION {_widgetGetData} {
+    #IF {!&WIDGETS[%1]} {
+        _warn {_widgetGetData: Widget '%1' does not exist.};
+        #RETURN {};
+    };
+
+    #RETURN {$WIDGETS[%1][data]};
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Events;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Register the unload handler.;
+_eventHandlerRegister {CLASS UNLOAD widget} {_widgetSelfUnloadHandler};
+#ALIAS {_widgetSelfUnloadHandler} {
+    #NOP %0;
+    #NOP Destroy all widgets.;
+    #LOCAL {toDestroy} {};
+    #FOREACH {$WIDGETS[%*]} {widget} {
+        #LIST {toDestroy} {INSERT} {1} {$widget[name]};
+    };
+
+    #IF {&toDestroy[]} {
+        #LOCAL {i} {0};
+        #LOOP {1} {&toDestroy[]} {i} {
+            _widgetDestroy {$toDestroy[$i]};
+        };
+    };
+};
+
+#NOP Destroy widgets created by other classes.;
+_eventHandlerRegister {CLASS UNLOAD} {_widgetClassUnloadHandler} {7};
+#ALIAS {_widgetClassUnloadHandler} {
+    #NOP %0;
+    #NOP Remove any widgets that were created by that class.;
+    #LOCAL {toDestroy} {};
+    #FOREACH {$WIDGETS[%*]} {widget} {
+        #IF {"$widget[class]" == "%1"} {
+            #LIST {toDestroy} {INSERT} {1} {$widget[name]};
+        };
+    };
+
+    #IF {&toDestroy[]} {
+        #LOCAL {i} {0};
+        #LOOP {1} {&toDestroy[]} {i} {
+            _widgetDestroy {$toDestroy[$i]};
+        };
+    };
+};
+
+#CLASS {widget} {CLOSE};

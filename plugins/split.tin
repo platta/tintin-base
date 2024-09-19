@@ -1,0 +1,396 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Class for handling screen splitting;
+#NOP ;
+#NOP Dependencies:;
+#NOP - events;
+#NOP - logging;
+#NOP --------------------------------------------------------------------------;
+#CLASS {split} {OPEN};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Split settings;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Sidebar controls;
+#VARIABLE {SPLIT_BARS} {
+    {TOP} {
+        {visible} {0}
+        {size} {0}
+    }
+    {BOTTOM} {
+        {visible} {1}
+        {size} {1}
+    }
+    {LEFT} {
+        {visible} {0}
+        {size} {0}
+    }
+    {RIGHT} {
+        {visible} {0}
+        {size} {0}
+    }
+    {INPUT} {
+        {visible} {1}
+        {size} {1}
+    }
+};
+
+#NOP VTMAP tweaks. Not sure where they should live, honestly;
+#VARIABLE {MAP_TWEAK} {
+    {TOP} {0}
+    {LEFT} {0}
+    {BOTTOM} {0}
+    {RIGHT} {0}
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Aliases;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Toggle a bar's visibility.;
+#NOP %1 - Bar name;
+#ALIAS {_splitToggle} {
+    #NOP %0;
+    #LOCAL {bar} {};
+    #FORMAT {bar} {%u} {%1};
+
+    #IF {"$bar" == "INPUT"} {
+        #NOP You can't hide the input bar.;
+        _warn {_splitToggle: You cannot hide the input bar.};
+        #RETURN;
+    };
+
+    #MATH {SPLIT_BARS[$bar][visible]} {!$SPLIT_BARS[$bar][visible]};
+    _eventFire {SPLIT REFRESH};
+}
+
+#NOP Show a bar.;
+#NOP %1 - Bar name;
+#ALIAS {_splitShow} {
+    #NOP %0;
+    #LOCAL {bar} {};
+    #FORMAT {bar} {%u} {%1};
+
+    #MATH {SPLIT_BARS[$bar][visible]} {1};
+    _eventFire {SPLIT REFRESH};
+}
+
+#NOP Hide a bar.;
+#NOP %1 - Bar name;
+#ALIAS {_splitHide} {
+    #NOP %0;
+    #LOCAL {bar} {};
+    #FORMAT {bar} {%u} {%1};
+
+    #IF {"$bar" == "INPUT"} {
+        #NOP You can't hide the input bar.;
+        _warn {_splitHide: You cannot hide the input bar.};
+        #RETURN;
+    };
+
+    #MATH {SPLIT_BARS[$bar][visible]} {0};
+    _eventFire {SPLIT REFRESH};
+}
+
+#NOP Set a bar's size.;
+#NOP %1 - Bar name;
+#NOP %2 - Bar size;
+#ALIAS {_splitSize} {
+    #NOP %0;
+    #LOCAL {bar} {};
+    #FORMAT {bar} {%u} {%1};
+
+    #LOCAL {size} {%2};
+    #IF {"$bar" == "INPUT" && $size == 0} {
+        #NOP Can't set the input bar size to zero.;
+        _warn {_splitSize: The input bar must be at least size 1.};
+        #LOCAL {size} {1};
+    };
+
+    #VARIABLE {SPLIT_BARS[$bar][size]} {$size};
+    #MATH {SPLIT_BARS[$bar][visible]} {$size != 0};
+    _eventFire {SPLIT REFRESH};
+};
+
+#NOP Set map tweak.;
+#NOP %1 - Tweak side (TOP|LEFT|BOTTOM|RIGHT);
+#NOP %1 - tweak value;
+#ALIAS {_splitMapTweak} {
+    #NOP %0;
+    #LOCAL {side} {};
+    #FORMAT {side} {%u} {%1};
+
+    #VARIABLE {MAP_TWEAK[$side]} {%2};
+    _eventFire {SPLIT REFRESH};
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Functions;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Get the specified coordinate.;
+#NOP %1 Which panel (top|bottom|left|right);
+#NOP %2 Which coordinate (top|bottom|left|right);
+#FUNCTION {_splitGetExtCoord} {
+    #NOP Get uppercase names.;
+    #FORMAT {panel} {%u} {%1};
+    #FORMAT {coordinate} {%u} {%2};
+
+    #IF {$SPLIT_BARS[TOP][visible]} {
+        #LOCAL {topSize} {$SPLIT_BARS[TOP][size]};
+    }; #ELSE {
+        #LOCAL {topSize} {1};
+    };
+
+    #IF {$SPLIT_BARS[BOTTOM][visible]} {
+        #LOCAL {bottomSize} {$SPLIT_BARS[BOTTOM][size]};
+    }; #ELSE {
+        #LOCAL {bottomSize} {1};
+    };
+
+    #IF {$SPLIT_BARS[LEFT][visible]} {
+        #LOCAL {leftSize} {$SPLIT_BARS[LEFT][size]};
+    }; #ELSE {
+        #LOCAL {leftSize} {1};
+    };
+
+    #IF {$SPLIT_BARS[RIGHT][visible]} {
+        #LOCAL {rightSize} {$SPLIT_BARS[RIGHT][size]};
+    }; #ELSE {
+        #LOCAL {rightSize} {1};
+    };
+
+    #SWITCH {"$panel"} {
+        #CASE {"TOP"} {
+            #SWITCH {"$coordinate"} {
+                #CASE {"TOP"} {
+                    #MATH {result} {1};
+                };
+
+                #CASE {"BOTTOM"} {
+                    #IF {$topSize < 0} {
+                        #MATH {result} {$topSize - 1};
+                    }; #ELSE {
+                        #MATH {result} {$topSize};
+                    };
+                };
+
+                #CASE {"LEFT"} {
+                    #MATH {result} {1};
+                };
+
+                #CASE {"RIGHT"} {
+                    #MATH {result} {-1};
+                };
+            };
+        };
+
+        #CASE {"BOTTOM"} {
+            #SWITCH {"$coordinate"} {
+                #CASE {"TOP"} {
+                    #IF {$bottomSize < 0} {
+                        #MATH {result} {-$bottomSize - $SPLIT_BARS[INPUT][size] + 2};
+                    }; #ELSE {
+                        #MATH {result} {-$bottomSize - $SPLIT_BARS[INPUT][size]};
+                    };
+                };
+
+                #CASE {"BOTTOM"} {
+                    #MATH {result} {-$SPLIT_BARS[INPUT][size] - 1};
+                };
+
+                #CASE {"LEFT"} {
+                    #MATH {result} {1};
+                };
+
+                #CASE {"RIGHT"} {
+                    #MATH {result} {-1};
+                };
+            };
+        };
+
+        #CASE {"LEFT"} {
+            #SWITCH {"$coordinate"} {
+                #CASE {"TOP"} {
+                    #IF {$topSize < 0} {
+                        #MATH {result} {$topSize - 1};
+                    }; #ELSE {
+                        #MATH {result} {$topSize};
+                    };
+                };
+
+                #CASE {"BOTTOM"} {
+                    #IF {$bottomSize < 0} {
+                        #MATH {result} {-$bottomSize - $SPLIT_BARS[INPUT][size] + 2};
+                    }; #ELSE {
+                        #MATH {result} {-$bottomSize - $SPLIT_BARS[INPUT][size]};
+                    };
+                };
+
+                #CASE {"LEFT"} {
+                    #MATH {result} {1};
+                };
+
+                #CASE {"RIGHT"} {
+                    #IF {$leftSize < 0} {
+                        #MATH {result} {$leftSize - 1};
+                    }; #ELSE {
+                        #MATH {result} {$leftSize};
+                    };
+                };
+            };
+        };
+
+        #CASE {"RIGHT"} {
+            #SWITCH {"$coordinate"} {
+                #CASE {"TOP"} {
+                    #IF {$topSize < 0} {
+                        #MATH {result} {$topSize - 1};
+                    }; #ELSE {
+                        #MATH {result} {$topSize};
+                    };
+                };
+
+                #CASE {"BOTTOM"} {
+                    #IF {$bottomSize < 0} {
+                        #MATH {result} {-$bottomSize - $SPLIT_BARS[INPUT][size] + 2};
+                    }; #ELSE {
+                        #MATH {result} {-$bottomSize - $SPLIT_BARS[INPUT][size]};
+                    };
+                };
+
+                #CASE {"LEFT"} {
+                    #IF {$rightSize < 0} {
+                        #MATH {result} {-$rightSize + 1};
+                    }; #ELSE {
+                        #MATH {result} {-$rightSize};
+                    };
+                };
+
+                #CASE {"RIGHT"} {
+                    #MATH {result} {-1};
+                };
+            };
+        };
+
+        #CASE {"INPUT"} {
+            #SWITCH {"$coordinate"} {
+                #CASE {"TOP"} {
+                    #IF {$SPLIT_BARS[INPUT][size] < 0} {
+                        #MATH {result} {-$SPLIT_BARS[INPUT][size]};
+                    }; #ELSE {
+                        #MATH {result} {-$SPLIT_BARS[INPUT][size]};
+                    };
+                };
+
+                #CASE {"BOTTOM"} {
+                    #VARIABLE {result} {-1};
+                };
+
+                #CASE {"LEFT"} {
+                    #VARIABLE {result} {1}
+                };
+
+                #CASE {"RIGHT"} {
+                    #VARIABLE {result} {-1}
+                };
+            };
+        };
+    };
+};
+
+#NOP Get an interior coordinate.;
+#NOP %1 Which panel (top|bottom|left|right);
+#NOP %2 Which coordinate (top|bottom|left|right);
+#FUNCTION {_splitGetIntCoord} {
+    #NOP Get uppercase names.;
+    #LOCAL {panel} {};
+    #FORMAT {panel} {%u} {%1};
+    #LOCAL {coordinate} {};
+    #FORMAT {coordinate} {%u} {%2};
+
+    #NOP Get the exterior coordinate. Adjust afterwards.;
+    #VARIABLE {result} {@_splitGetExtCoord{$panel; $coordinate}};
+
+    #IF {"$coordinate" == "TOP"} {
+        #MATH {result} {$result + 1};
+    };
+
+    #IF {"$coordinate" == "BOTTOM"} {
+        #MATH {result} {$result - 1};
+    };
+
+    #IF {"$coordinate" == "LEFT" && "$panel" != "LEFT"} {
+        #MATH {result} {$result + 1};
+    };
+
+    #IF {"$coordinate" == "RIGHT" && "$panel" != "RIGHT"} {
+        #MATH {result} {$result - 1};
+    };
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Events;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Register an event that others can hook into for refreshing the;
+#NOP rendering of the split.;
+_eventRegister {SPLIT REFRESH};
+
+#NOP Register the base split refresh handler.;
+_eventHandlerRegister {SPLIT REFRESH} {_splitRefresh};
+#ALIAS {_splitRefresh} {
+    #NOP %0;
+    #NOP Set the split.;
+    #IF {$SPLIT_BARS[TOP][visible] == 1} {
+        #LOCAL {_top_bar_size} {$SPLIT_BARS[TOP][size]};
+    }; #ELSE {
+        #LOCAL {_top_bar_size} {0};
+    };
+    #IF {$SPLIT_BARS[BOTTOM][visible] == 1} {
+        #LOCAL {_bottom_bar_size} {$SPLIT_BARS[BOTTOM][size]};
+    }; #ELSE {
+        #LOCAL {_bottom_bar_size} {0};
+    };
+    #IF {$SPLIT_BARS[LEFT][visible] == 1} {
+        #LOCAL {_left_bar_size} {$SPLIT_BARS[LEFT][size]};
+    }; #ELSE {
+        #LOCAL {_left_bar_size} {0};
+    };
+    #IF {$SPLIT_BARS[RIGHT][visible] == 1} {
+        #LOCAL {_right_bar_size} {$SPLIT_BARS[RIGHT][size]};
+    }; #ELSE {
+        #LOCAL {_right_bar_size} {0};
+    };
+    #IF {$SPLIT_BARS[INPUT][visible] == 1} {
+        #LOCAL {_input_bar_size} {$SPLIT_BARS[INPUT][size]};
+    }; #ELSE {
+        #LOCAL {_input_bar_size} {0};
+    };
+
+    #NOP Hide the map before changing the split. If it's meant to be shown, the;
+    #NOP panel that it's registered with will turn it back on.;
+    #LINE {QUIET} {#MAP {FLAG} {VTMAP} {OFF}};
+    #SPLIT {$_top_bar_size} {$_bottom_bar_size} {$_left_bar_size} {$_right_bar_size} {$_input_bar_size};
+
+    #NOP Jump the buffer to the bottom.;
+    #BUFFER {END};
+    #BUFFER {REFRESH};
+};
+
+#NOP Whenever the screen resizes, fire the refresh event.;
+_eventHandlerRegister {SCREEN RESIZE} {_splitScreenResizeHandler};
+#ALIAS {_splitScreenResizeHandler} {
+    #NOP %0;
+    _eventFire {SPLIT REFRESH};
+};
+
+#NOP Register the load handler.;
+_eventHandlerRegister {CLASS LOAD split} {_splitSelfUnloadHandler};
+#ALIAS {_splitSelfUnloadHandler} {
+    #NOP %0;
+    #NOP Refresh the split for the first time.;
+    _eventFire {SPLIT REFRESH};
+};
+
+#CLASS {split} {CLOSE};
