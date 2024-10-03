@@ -54,6 +54,8 @@
     }; #ELSEIF {"$type" == "WIDGET"} {
         #VARIABLE {PANELS[%1][contents]} {%3};
         _eventHandlerRegister {WIDGET UPDATED %3} {_panelDraw {%1}};
+    }; #ELSEIF {"$type" == "MAP"} {
+        _eventHandlerRegister {MAP UPDATED} {_panelDraw {%1}};
     };
 };
 
@@ -71,6 +73,8 @@
         _eventHandlerUnregister {BUFFER UPDATED $PANELS[%1][contents]} {_panelDraw {$PANELS[%1][name]}};
     }; #ELSEIF {"$PANELS[%1][type]" == "WIDGET"} {
         _eventHandlerUnregister {WIDGET UPDATED $PANELS[%1][contents]} {_panelDraw {$PANELS[%1][name]}};
+    }; #ELSEIF {"$PANELS[%1][type]" == "MAP"} {
+        _eventHandlerUnregister {MAP UPDATED} {_panelDraw {$PANELS[%1][name]}};
     };
 
     #UNVARIABLE {PANELS[%1]};
@@ -216,10 +220,7 @@
     };
 
     #IF {"$panel[type]" == "MAP"} {
-        #NOP Set map coordinates and turn on map. Maybe also draw box around it?;
-        #DRAW {$BOX_COLOR} {$BOX_STYLE} {BOX} {$coords[top]} {$coords[left]} {$coords[bottom]} {$coords[right]};
-        #MAP {OFFSET} {$coords[top] + 1 + $MAP_TWEAK[TOP]} {$coords[left] + 1 + $MAP_TWEAK[LEFT]} {$coords[bottom] - 1 + $MAP_TWEAK[BOTTOM]} {$coords[right] - 1 + $MAP_TWEAK[RIGHT]};
-        #MAP {FLAG} {VTMAP} {ON};
+        _mapDraw {$coords[top]} {$coords[left]} {$coords[bottom]} {$coords[right]};
     }; #ELSEIF {"$panel[type]" == "BUFFER"} {
         #NOP Render buffer at this position.;
         _bufferDraw {$panel[contents]} {$coords[top]} {$coords[left]} {$coords[bottom]} {$coords[right]};

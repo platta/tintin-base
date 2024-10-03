@@ -590,6 +590,8 @@ _eventRegister {PRESSED LINK MXP MOUSE BUTTON THREE};
     _eventFire {PRESSED LINK MXP MOUSE BUTTON THREE} {%0} {%1} {%2} {%3} {%4} {%5};
 };
 
+_eventRegister {MAP UPDATED};
+
 #NOP --------------------------------------------------------------------------;
 #NOP Class events;
 #NOP --------------------------------------------------------------------------;

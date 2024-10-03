@@ -4,9 +4,8 @@
 #NOP Use this class as the foundation for everything else.;
 #NOP ;
 #NOP Dependencies:;
-#NOP - base path exists.;
-#NOP - logging.tin in base folder.;
-#NOP - classutils.tin in base folder.;
+#NOP - base path exists - assumed to be `~/.tintin`.;
+#NOP - plugins folder exists with all base plugins.;
 #NOP --------------------------------------------------------------------------;
 #CLASS {base} {OPEN};
 
@@ -82,6 +81,30 @@ _panelCreate {logs} {BUFFER} {logs};
         #MATH {maxLength} {$maxLength - 3};
         #FORMAT {result} {%.${maxLength}s...} {%1};
     };
+};
+
+#NOP Return a string, but skip the first N characters.;
+#NOP %1 - String.;
+#NOP %2 - Number of characters to skiop.;
+#FUNCTION {_stringSkip} {
+    #NOP Get length.;
+    #LOCAL {length} {};
+    #FORMAT {length} {%L} {%1};
+    #MATH {length} {$length - %2};
+
+    #NOP Reverse string.;
+    #LOCAL {reversed} {};
+    #FORMAT {reversed} {%r} {%1};
+
+    #NOP Truncate to length - 1.;
+    #FORMAT {reversed} {%.${length}s} {$reversed};
+
+    #NOP Reverse again.;
+    #LOCAL {result} {};
+    #FORMAT {result} {%r} {$reversed};
+
+    #NOP Return.;
+    #RETURN {$result};
 };
 
 #NOP Color gradient scale red/yellow/green;
