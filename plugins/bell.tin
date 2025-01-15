@@ -17,9 +17,16 @@
 #NOP Aliases;
 #NOP --------------------------------------------------------------------------;
 
+_pluginCreate {bell} {Commands for ringing the terminal bell}
+
 #NOP Ring bell;
 #NOP Wrapper for actual bell so it observes the global flag.;
-#ALIAS {_bell} {
+_pluginCreateCommand
+    {bell}
+    {ring}
+    {_bellRing}
+    {Ring the bell (if enabled)};
+#ALIAS {_bellRing} {
     #NOP %0;
     #IF {$RING_BELL} {
         #BELL;
@@ -27,6 +34,11 @@
 };
 
 #NOP Toggle bell.;
+_pluginCreateCommand
+    {bell}
+    {toggle}
+    {_bellToggle}
+    {Toggle the bell on or off};
 #ALIAS {_bellToggle} {
     #NOP %0;
     #IF {$RING_BELL} {
@@ -37,15 +49,26 @@
 };
 
 #NOP Turn bell on.;
+_pluginCreateCommand
+    {bell}
+    {on}
+    {_bellOn}
+    {Turn the bell on};
 #ALIAS {_bellOn} {
     #NOP %0;
     #VARIABLE {RING_BELL} {1};
     _info {Bell is now turned ON};
-    _bell;
+    _bellRing;
 };
 
 #NOP Turn bell off.;
+_pluginCreateCommand
+    {bell}
+    {off}
+    {_bellOff}
+    {Turn the bell off};
 #ALIAS {_bellOff} {
+    #NOP %0;
     #VARIABLE {RING_BELL} {0};
     _info {Bell is now turned OFF};
 };

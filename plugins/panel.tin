@@ -10,6 +10,8 @@
 #NOP --------------------------------------------------------------------------;
 #CLASS {panel} {OPEN};
 
+_pluginCreate {panel} {Modular panels that can be docked around the screen};
+
 #NOP --------------------------------------------------------------------------;
 #NOP Variables;
 #NOP --------------------------------------------------------------------------;
@@ -31,6 +33,17 @@
 #NOP %1 - Panel name;
 #NOP %2 - Content type (MAP|BUFFER|WIDGET);
 #NOP %3 - Buffer or widget name;
+_pluginCreateCommand
+    {panel}
+    {create}
+    {_panelCreate}
+    {Create a new panel}
+    {
+        {1} {Panel name}
+        {2} {Content type (map|buffer|widget)}
+        {3} {Buffer or widget name (depending on type)}
+    }
+    {Only one panel of type map should be created.};
 #ALIAS {_panelCreate} {
     #NOP %0;
     #IF {&PANELS[%1]} {
@@ -61,6 +74,14 @@
 
 #NOP Destroy a panel.;
 #NOP %1 - Panel name;
+_pluginCreateCommand
+    {panel}
+    {destroy}
+    {_panelDestroy}
+    {Destroy a panel}
+    {
+        {1} {Panel name}
+    };
 #ALIAS {_panelDestroy} {
     #NOP %0;
     #IF {!&PANELS[%1]} {
@@ -82,6 +103,14 @@
 
 #NOP Hide a panel.;
 #NOP %1 - Panel name;
+_pluginCreateCommand
+    {panel}
+    {hide}
+    {_panelHide}
+    {Hide a panel, making it invisible}
+    {
+        {1} {Panel name}
+    };
 #ALIAS {_panelHide} {
     #NOP %0;
     #IF {!&PANELS[%1]} {
@@ -96,6 +125,14 @@
 
 #NOP Show a panel.;
 #NOP %1 - Panel name;
+_pluginCreateCommand
+    {panel}
+    {show}
+    {_panelShow}
+    {Show a panel, making it visible}
+    {
+        {1} {Panel name}
+    };
 #ALIAS {_panelShow} {
     #NOP %0;
     #IF {!&PANELS[%1]} {
@@ -110,6 +147,14 @@
 
 #NOP Toggle a panel.;
 #NOP %1 - Panel name;
+_pluginCreateCommand
+    {panel}
+    {toggle}
+    {_panelToggle}
+    {Toggle a panel between shown and hidden}
+    {
+        {1} {Panel name}
+    };
 #ALIAS {_panelToggle} {
     #NOP %0;
     #IF {!&PANELS[%1]} {
@@ -120,7 +165,7 @@
     #VARIABLE {PANELS[%1][visible]} {!$PANELS[%1][visible]};
 
     _eventFire {SPLIT REFRESH};
-}
+};
 
 #NOP Dock a panel in a new position.;
 #NOP %1 - Panel name;
@@ -129,6 +174,20 @@
 #NOP %4 - Dock left coord;
 #NOP %5 - Dock bottom coord;
 #NOP %6 - Dock right coord;
+_pluginCreateCommand
+    {panel}
+    {dock}
+    {_panelDock}
+    {Dock a panel at a position in a container}
+    {
+        {1} {Panel name}
+        {2} {Container (top|bottm|left|right)}
+        {3} {Top coordinate}
+        {4} {Left coordinate}
+        {5} {Bottom coordinate}
+        {6} {Right coordinate}
+    }
+    {The docking system uses a 6x6 grid in each container for positioning. Coordinates should be specified from 1-6. The actual screen coordinates are calculated dynamically based on the size of the container.};
 #ALIAS {_panelDock} {
     #NOP %0;
     #IF {!&PANELS[%1]} {
@@ -198,6 +257,14 @@
 
 #NOP Draw one panel.;
 #NOP %1 - Name of the panel to draw;
+_pluginCreateCommand
+    {panel}
+    {draw}
+    {_panelDraw}
+    {Draw a panel where it is docked}
+    {
+        {1} {Panel name}
+    };
 #ALIAS {_panelDraw} {
     #NOP %0;
     #IF {!&PANELS[%1]} {
@@ -234,6 +301,11 @@
 };
 
 #NOP Draw all panels.;
+_pluginCreateCommand
+    {panel}
+    {drawAll}
+    {_panelDrawAll}
+    {Draw all panels};
 #ALIAS {_panelDrawAll} {
     #NOP %0;
     #LOCAL {panel} {};
@@ -245,6 +317,11 @@
 };
 
 #NOP Reverse scroll direction;
+_pluginCreateCommand
+    {panel}
+    {reverseScroll}
+    {_panelReverseScroll}
+    {Reverse the scrolling direction sent to buffers from scroll events (toggle)};
 #ALIAS {_panelReverseScroll} {
     #NOP %0;
     #MATH {PANEL_REVERSE_SCROLL} {!$PANEL_REVERSE_SCROLL};
@@ -468,6 +545,20 @@ _eventHandlerRegister {SCROLLED MOUSE WHEEL DOWN} {_panelScrollDownHandler};
         };
     }; #ELSEIF {"$panel[type]" == "WIDGET"} {
         _eventFire {WIDGET SCROLLED $panel[contents]} {%2};
+    };
+};
+
+_pluginCreateCommand
+    {panel}
+    {list}
+    {_panelList}
+    {List all panels registered by plugins};
+#ALIAS {_panelList} {
+    _echo {--------------------------------------------------------------------------------\nAvailable panels\n--------------------------------------------------------------------------------};
+    #FOREACH {$PLUGINS[%*]} {plugin} {
+        #FOREACH {$plugin[panels][%*]} {panel} {
+            _echo {• $panel[name] ($plugin[name]) - $panel[description]};
+        };
     };
 };
 

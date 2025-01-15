@@ -652,4 +652,64 @@ _eventHandlerRegister {CLASS UNLOAD} {_eventsClassUnloadHandler} {20};
     };
 };
 
+#NOP Register plugin commands for this class.;
+#ALIAS {_eventCreatePlugin} {
+    #NOP %0;
+    #CLASS {events} {OPEN};
+
+    _pluginCreate {event} {Event firing and handling for native and custom events};
+
+    _pluginCreateCommand
+        {event}
+        {register}
+        {_eventRegister}
+        {Register a custom event}
+        {
+            {1} {Event name}
+        };
+
+    _pluginCreateCommand
+        {event}
+        {unregister}
+        {_eventUnregister}
+        {Unregister a custom event and its handlers}
+        {
+            {1} {Event Name}
+        };
+
+    _pluginCreateCommand
+        {event}
+        {registerHandler}
+        {_eventHandlerRegister}
+        {Register a handler for an event}
+        {
+            {1} {Event name}
+            {2} {Handler alias}
+            {3} {Priority (default 5)}
+        }
+        {Multiple event handlers for the same event will all be invoked, in order of priority (1 is the highest priority)};
+
+    _pluginCreateCommand
+        {event}
+        {unregisterHandler}
+        {_eventHandlerUnregister}
+        {Unregister an event handler}
+        {
+            {1} {Event name}
+            {2} {Handler alias}
+        };
+
+    _pluginCreateCommand
+        {event}
+        {fire}
+        {_eventFire}
+        {Fire an event}
+        {
+            {1} {Event name}
+            {2} {(Arguments 2 through 11) Event arguments}
+        };
+
+    #CLASS {events} {CLOSE};
+};
+
 #CLASS {events} {CLOSE};

@@ -7,6 +7,8 @@
 #NOP --------------------------------------------------------------------------;
 #CLASS {widget} {OPEN};
 
+_pluginCreate {widget} {Widget functionality to be docked as panels};
+
 #NOP --------------------------------------------------------------------------;
 #NOP Variables;
 #NOP --------------------------------------------------------------------------;
@@ -23,6 +25,17 @@
 #NOP %2 - Alias to invoke to draw the widget;
 #NOP %3 - Minimum width (default 0);
 #NOP %4 - Minimum height {default 0};
+_pluginCreateCommand
+    {widget}
+    {create}
+    {_widgetCreate}
+    {Create a new widget}
+    {
+        {1} {Widget name}
+        {2} {Draw alias (invoked when it's time to draw the widget)}
+        {3} {Minimum width (default 0)}
+        {4} {Minimum height (default 0)}
+    };
 #ALIAS {_widgetCreate} {
     #NOP %0;
     #IF {&WIDGETS[%1]} {
@@ -56,6 +69,14 @@
 
 #NOP Destroy a widget.;
 #NOP %1 - Widget name;
+_pluginCreateCommand
+    {widget}
+    {destroy}
+    {_widgetDestroy}
+    {Destroy a widget}
+    {
+        {1} {Widget name}
+    };
 #ALIAS {_widgetDestroy} {
     #NOP %0;
     #IF {!&WIDGETS[%1]} {
@@ -72,6 +93,16 @@
 #NOP Update a widget's data.;
 #NOP %1 - Widget name;
 #NOP %2 - Widget data;
+_pluginCreateCommand
+    {widget}
+    {updateData}
+    {_widgetUpdateData}
+    {Store updated data in the widget and refresh}
+    {
+        {1} {Widget name}
+        {2} {Updated data}
+    }
+    {Right now there aren't any widgets that use this kind of "internal" data storage. Leaving this here, though.};
 #ALIAS {_widgetUpdateData} {
     #NOP %0;
     #IF {!&WIDGETS[%1]} {
@@ -89,6 +120,18 @@
 #NOP %3 - Left coordinate;
 #NOP %4 - Bottom coordinate;
 #NOP %5 - Right coordinate;
+_pluginCreateCommand
+    {widget}
+    {draw}
+    {_widgetDraw}
+    {Draw a widget}
+    {
+        {1} {Widget name}
+        {2} {Top coordinate}
+        {3} {Left coordinate}
+        {4} {Bottom coordinate}
+        {5} {Right coordinate}
+    };
 #ALIAS {_widgetDraw} {
     #NOP %0;
     #IF {!&WIDGETS[%1]} {

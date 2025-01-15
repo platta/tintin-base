@@ -12,6 +12,7 @@
 #VARIABLE {LOGGING_INFO_FORMAT} {<160>};
 #VARIABLE {LOGGING_WARNING_FORMAT} {<130>};
 #VARIABLE {LOGGING_ERROR_FORMAT} {<110>};
+#VARIABLE {LOGGING_ECHO_FORMAT} {<150>};
 
 #NOP Specify a buffer to add log messages to.;
 #VARIABLE {LOGGING_BUFFER} {};
@@ -87,6 +88,17 @@
     };
 };
 
+#NOP Write output as an echo.;
+#NOP %1 - Message.;
+#ALIAS {_echo} {
+    #NOP %0;
+
+    #NOP Echo the message.;
+    #IF {$LOGGING_ECHO} {
+        #LINE {IGNORE} {#ECHO {${LOGGING_ECHO_FORMAT}%1<088>}};
+    };
+};
+
 #NOP Set the buffer to record log messages in.;
 #NOP %1 - Name of the buffer.;
 #ALIAS {_loggingSetBuffer} {
@@ -95,38 +107,119 @@
     _info {Buffer for logging has been set to '%1'.};
 };
 
-#NOP Turn on logging echo.;
-#ALIAS {_loggingEchoOn} {
+#NOP Set echo state.;
+#ALIAS {_loggingSetEcho} {
     #NOP %0;
-    #VARIABLE {LOGGING_ECHO} {1};
-    _info {Logging echo is now ON.};
+    #LOCAL {set} {};
+    #FORMAT {set} {%u} {%1};
+
+    #IF {"$set" == "ON"} {
+        #VARIABLE {LOGGING_ECHO} {1};
+        _info {Logging echo is now ON.};
+    }; #ELSE {
+        VARIABLE {LOGGING_ECHO} {0};
+        _info {Logging echo is now OFF.};
+    };
 };
 
-#NOP Turn off logging echo.;
-#ALIAS {_loggingEchoOff} {
+#NOP Set log level.;
+#ALIAS {_loggingSetLevel} {
     #NOP %0;
-    #VARIABLE {LOGGING_ECHO} {0};
-    _info {Logging echo is now OFF.};
+    #LOCAL {level} {};
+    #FORMAT {level} {%u} {%1};
+
+    #IF {"$level" == "DEBUG"} {
+        #VARIABLE {LOG_LEVEL} {4};
+    }; #ELSEIF {"$level" == "INFO"} {
+        #VARIABLE {LOG_LEVEL} {3};
+    }; #ELSEIF {"$level" == "WARNING"} {
+        #VARIABLE {LOG_LEVEL} {2};
+    }; #ELSE {
+        #VARIABLE {LOG_LEVEL} {1};
+    };
 };
 
-#NOP Set log level to error.;
-#ALIAS {_logLevelError} {
-    #VARIABLE {LOG_LEVEL} {1};
-};
+#NOP Create logging plugin and commands.
+#ALIAS {_loggingCreatePlugin} {
+    #NOP %0;
+    #CLASS {logging} {OPEN};
 
-#NOP Set log level to warning.;
-#ALIAS {_logLevelWarning} {
-    #VARIABLE {LOG_LEVEL} {2};
-};
+    _pluginCreate {logging} {Logging and echo functions};
 
-#NOP Set log level to info.;
-#ALIAS {_logLevelInfo} {
-    #VARIABLE {LOG_LEVEL} {3};
-};
+    _pluginCreateCommand
+        {logging}
+        {debug}
+        {_debug}
+        {Write a debug log message}
+        {
+            {1} {Log message}
+        };
 
-#NOP Set log level to debug.;
-#ALIAS {_logLevelDebug} {
-    #VARIABLE {LOG_LEVEL} {4};
+    _pluginCreateCommand
+        {logging}
+        {info}
+        {_info}
+        {Write a info log message}
+        {
+            {1} {Log message}
+        };
+
+    _pluginCreateCommand
+        {logging}
+        {warn}
+        {_warn}
+        {Write a warning log message}
+        {
+            {1} {Log message}
+        };
+
+    _pluginCreateCommand
+        {logging}
+        {error}
+        {_error}
+        {Write a error log message}
+        {
+            {1} {Log message}
+        };
+
+    _pluginCreateCommand
+        {logging}
+        {echo}
+        {_echo}
+        {Directly echo a message}
+        {
+            {1} {Message}
+        }
+        {This output is not controlled by other logging settings. It's basically just so that there's a central place to control the formatting of echoed messages.};
+
+    _pluginCreateCommand
+        {logging}
+        {setBuffer}
+        {_loggingSetBuffer}
+        {Specify a text buffer for log messages to be written to}
+        {
+            {1} {Buffer name}
+        };
+
+    _pluginCreateCommand
+        {logging}
+        {setEcho}
+        {_loggingSetEcho}
+        {Enable or disable writing logs as echo messages}
+        {
+            {1} {on|off}
+        };
+
+    _pluginCreateCommand
+        {logging}
+        {setLevel}
+        {_loggingSetLevel}
+        {Set the verbosity of logging}
+        {
+            {1} {debug|info|warning|error}
+        };
+
+    #CLASS {logging} {CLOSE};
 };
 
 #CLASS {logging} {CLOSE};

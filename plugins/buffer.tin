@@ -7,6 +7,8 @@
 #NOP --------------------------------------------------------------------------;
 #CLASS {buffer} {OPEN};
 
+_pluginCreate {buffer} {Text buffers to hold various game captures};
+
 #NOP --------------------------------------------------------------------------;
 #NOP Variables;
 #NOP --------------------------------------------------------------------------;
@@ -26,7 +28,19 @@
 #NOP %2 - (0|1) Show timestamps (default 1);
 #NOP %3 - (0|1) Ring bell when adding to this buffer (default 0);
 #NOP %4 - (0|1) Top-to-bottom (default 0 for bottom-to-top);
-#NOP %2 - Buffer size (default is controlled by a variable defined up top);
+#NOP %5 - Buffer size (default is controlled by a variable defined up top);
+_pluginCreateCommand
+    {buffer}
+    {create}
+    {_bufferCreate}
+    {Create a new buffer}
+    {
+        {1} {Buffer name}
+        {2} {(0|1) Show timestamps (default 1)}
+        {3} {(0|1) Ring bell when adding to this buffer (default 0)}
+        {4} {(0|1) Top-to-bottom (default 0 for bottom-to-top)}
+        {5} {Buffer size (default is set in DEFAULT_BUFFER_SIZE)}
+    };
 #ALIAS {_bufferCreate} {
     #NOP %0;
     #IF {&BUFFERS[%1]} {
@@ -77,6 +91,14 @@
 
 #NOP Destroy a buffer.;
 #NOP %1 - Buffer name;
+_pluginCreateCommand
+    {buffer}
+    {destroy}
+    {_bufferDestroy}
+    {Destroy an existing buffer}
+    {
+        {1} {Buffer name}
+    };
 #ALIAS {_bufferDestroy} {
     #NOP %0;
     #IF {&BUFFERS[%1] == 0} {
@@ -95,6 +117,16 @@
 #NOP %1 - Buffer name;
 #NOP %2 - Content;
 #NOP %3 - (0|1) Skip bell (if enabled for this buffer). Default 0.;
+_pluginCreateCommand
+    {buffer}
+    {add}
+    {_bufferAdd}
+    {Add a new item to a buffer}
+    {
+        {1} {Buffer name}
+        {2} {Content}
+        {3} {(0|1) Skip bell if enabled for this buffer (default 0)}
+    };
 #ALIAS {_bufferAdd} {
     #NOP %0;
     #IF {&BUFFERS[%1] == 0} {
@@ -149,7 +181,7 @@
 
     #NOP Ring bell if necessary.;
     #IF {$BUFFERS[%1][ringBell] && !$skipBell} {
-        _bell;
+        _bellRing;
     };
 
     #NOP Fire update event.;
@@ -158,6 +190,14 @@
 
 #NOP Clear a buffer.;
 #NOP %1 - Buffer name;
+_pluginCreateCommand
+    {buffer}
+    {clear}
+    {_bufferClear}
+    {Clear the contents of a buffer}
+    {
+        {1} {Buffer name}
+    };
 #ALIAS {_bufferClear} {
     #NOP %0;
     #IF {&BUFFERS[%1] == 0} {
@@ -176,6 +216,15 @@
 #NOP Lock a buffer.;
 #NOP It will not scroll to the bottom when new messages are added.;
 #NOP %1 - Buffer name;
+_pluginCreateCommand
+    {buffer}
+    {lock}
+    {_bufferLock}
+    {Lock the scroll position of a buffer}
+    {
+        {1} {Buffer name}
+    }
+    {When a buffer is locked, it will not automatically scroll to the end as new items are added.};
 #ALIAS {_bufferLock} {
     #NOP %0;
     #IF {&BUFFERS[%1] == 0} {
@@ -188,6 +237,15 @@
 
 #NOP Unlock a buffer and scroll it to the bottom.;
 #NOP %1 - Buffer name;
+_pluginCreateCommand
+    {buffer}
+    {unlock}
+    {_bufferUnlock}
+    {Unlock a buffer's scroll position}
+    {
+        {1} {Buffer name}
+    }
+    {This command will also scroll the buffer to the end.};
 #ALIAS {_bufferUnlock} {
     #NOP %0;
     #IF {&BUFFERS[%1] == 0} {
@@ -209,6 +267,16 @@
 #NOP Scroll a buffer up.;
 #NOP %1 - Buffer name;
 #NOP %2 - Lines to scroll;
+_pluginCreateCommand
+    {buffer}
+    {up}
+    {_bufferUp}
+    {Scroll up in a buffer}
+    {
+        {1} {Buffer name}
+        {2} {Lines to scroll (default 1)}
+    }
+    {Scrolling a buffer will implicitly lock it so new items won't cause it to scroll.};
 #ALIAS {_bufferUp} {
     #NOP %0;
     #IF {&BUFFERS[%1] == 0} {
@@ -248,6 +316,16 @@
 #NOP Scroll a buffer down.;
 #NOP %1 - Buffer name;
 #NOP %2 - Lines to scroll;
+_pluginCreateCommand
+    {buffer}
+    {down}
+    {_bufferDown}
+    {Scroll down in a buffer}
+    {
+        {1} {Buffer name}
+        {2} {Lines to scroll (default 1)}
+    }
+    {Scrolling a buffer will implicitly lock it so new items won't cause it to scroll.};
 #ALIAS {_bufferDown} {
     #NOP %0;
     #IF {&BUFFERS[%1] == 0} {
@@ -290,6 +368,18 @@
 #NOP %3 - Left coordinate;
 #NOP %4 - Bottom coordinate;
 #NOP %5 - Right coordinate;
+_pluginCreateCommand
+    {buffer}
+    {draw}
+    {_bufferDraw}
+    {Draw a buffers contents on the screen}
+    {
+        {1} {Buffer name}
+        {2} {Top coordinate}
+        {3} {Left coordinate}
+        {4} {Bottom coordinate}
+        {5} {Right coordinate}
+    };
 #ALIAS {_bufferDraw} {
     #NOP %0;
     #IF {&BUFFERS[%1] == 0} {

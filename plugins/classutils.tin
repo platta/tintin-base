@@ -104,6 +104,47 @@ _eventHandlerRegister {CLASS DEACTIVATED} {_classutilsClassDeactivatedHandler};
     };
 };
 
+#NOP Create plugin and commands for this class once the plugin system exists.;
+#ALIAS {_classCreatePlugin} {
+    #CLASS {classutils} {OPEN};
+
+    _pluginCreate {class} {Class management utilities};
+
+    _pluginCreateCommand
+        {class}
+        {load}
+        {_classLoad}
+        {Load a class from a file}
+        {
+            {1} {Name of the class, file name is assumed to match}
+            {2} {(Optional) Subfolder the class is in, relative to base folder}
+            {3} {(Optional) Override default file name}
+        }
+        {• When specifying a subfolder, do not include any leading or trailing slashes.\n• When overriding the default file name, do not include the .tin extension.};
+
+    _pluginCreateCommand
+        {class}
+        {unload}
+        {_classUnload}
+        {Unload a loaded class}
+        {
+            {1} {Name of the class}
+        };
+
+    _pluginCreateCommand
+        {class}
+        {reload}
+        {_classReload}
+        {
+            {1} {Name of the class, file name is assumed to match}
+            {2} {(Optional) Subfolder the class is in, relative to base folder}
+            {3} {(Optional) Override default file name}
+        }
+        {•The arguments you pass must match those that were used when the class was first loaded.• When specifying a subfolder, do not include any leading or trailing slashes.\n• When overriding the default file name, do not include the .tin extension.};
+
+    #CLASS {classutils} {CLOSE};
+};
+
 #NOP --------------------------------------------------------------------------;
 #NOP Functions;
 #NOP --------------------------------------------------------------------------;

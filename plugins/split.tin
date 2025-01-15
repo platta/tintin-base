@@ -7,6 +7,8 @@
 #NOP --------------------------------------------------------------------------;
 #CLASS {split} {OPEN};
 
+_pluginCreate {split} {Split screen controls};
+
 #NOP --------------------------------------------------------------------------;
 #NOP Split settings;
 #NOP --------------------------------------------------------------------------;
@@ -49,6 +51,14 @@
 
 #NOP Toggle a bar's visibility.;
 #NOP %1 - Bar name;
+_pluginCreateCommand
+    {split}
+    {toggle}
+    {_splitToggle}
+    {Toggle the visibility of one of the split containers}
+    {
+        {1} {Container name (top|bottom|left|right)}
+    };
 #ALIAS {_splitToggle} {
     #NOP %0;
     #LOCAL {bar} {};
@@ -66,6 +76,14 @@
 
 #NOP Show a bar.;
 #NOP %1 - Bar name;
+_pluginCreateCommand
+    {split}
+    {show}
+    {_splitShow}
+    {Show one of the split containers}
+    {
+        {1} {Container name (top|bottom|left|right)}
+    };
 #ALIAS {_splitShow} {
     #NOP %0;
     #LOCAL {bar} {};
@@ -77,6 +95,14 @@
 
 #NOP Hide a bar.;
 #NOP %1 - Bar name;
+_pluginCreateCommand
+    {split}
+    {hide}
+    {_splitHide}
+    {Hide one of the split containers}
+    {
+        {1} {Container name (top|bottom|left|right)}
+    };
 #ALIAS {_splitHide} {
     #NOP %0;
     #LOCAL {bar} {};
@@ -95,6 +121,16 @@
 #NOP Set a bar's size.;
 #NOP %1 - Bar name;
 #NOP %2 - Bar size;
+_pluginCreateCommand
+    {split}
+    {resize}
+    {_splitSize}
+    {Resize one of the split containers}
+    {
+        {1} {Container name (top|bottom|left|right|input)}
+        {2} {New size}
+    }
+    {These sizes can be negative, in which case the size calculations are inverted. Hard to explain, but play with it, it'll make sense.};
 #ALIAS {_splitSize} {
     #NOP %0;
     #LOCAL {bar} {};
@@ -115,6 +151,16 @@
 #NOP Set map tweak.;
 #NOP %1 - Tweak side (TOP|LEFT|BOTTOM|RIGHT);
 #NOP %1 - tweak value;
+_pluginCreateCommand
+    {split}
+    {mapTweak}
+    {_splitMapTweak}
+    {Set tweak values for how the map is rendered}
+    {
+        {1} {Side {top|bottom|left|right}}
+        {2} {Tweak value}
+    }
+    {Sometimes the way the native map renderer draws things, it draws one row or column too few. If necessary you can manually tweak the values. It seems to depend on the size of the split container as well as the size of your terminal window.};
 #ALIAS {_splitMapTweak} {
     #NOP %0;
     #LOCAL {side} {};
@@ -339,6 +385,11 @@ _eventRegister {SPLIT REFRESH};
 
 #NOP Register the base split refresh handler.;
 _eventHandlerRegister {SPLIT REFRESH} {_splitRefresh};
+_pluginCreateCommand
+    {split}
+    {refresh}
+    {_splitRefresh}
+    {Re-apply the split settings};
 #ALIAS {_splitRefresh} {
     #NOP %0;
     #NOP Set the split.;

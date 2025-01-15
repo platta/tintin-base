@@ -42,6 +42,15 @@
 #NOP Load classutils so it's easier to work with loading classes from now on.;
 #CLASS {classutils} {READ} {$__base/plugins/classutils.tin}
 
+#NOP Load plugin system.;
+_classLoad {plugin} {plugins};
+
+#NOP Now that the plugin system is loaded, go back for classes we already
+#NOP loaded.;
+_loggingCreatePlugin;
+_classCreatePlugin;
+_eventCreatePlugin;
+
 #NOP Load other classes.;
 _classLoad {bell} {plugins};
 _classLoad {split} {plugins};
@@ -49,9 +58,14 @@ _classLoad {buffer} {plugins};
 _classLoad {widget} {plugins};
 _classLoad {panel} {plugins};
 
+#NOP Set up a base plugin.;
+_pluginCreate {base} {Base system functionality};
+
 #NOP Set up a logging panel.;
 _bufferCreate {logs} {0};
 _loggingSetBuffer {logs};
+
+_pluginCreatePanel {base} {logs} {Dockable panel to view logs};
 _panelCreate {logs} {BUFFER} {logs};
 
 #NOP --------------------------------------------------------------------------;
@@ -155,6 +169,15 @@ _panelCreate {logs} {BUFFER} {logs};
 #NOP Start a session.;
 #NOP %1 - Game name.;
 #NOP %2 - Character name.;
+_pluginCreateCommand
+    {base}
+    {connect}
+    {_connect}
+    {Create a new connection}
+    {
+        {1} {Game name}
+        {2} {Character name}
+    };
 #ALIAS {_connect} {
     #NOP %0;
     #NOP Assume game class exists in current folder, named game.<game>.tin;
@@ -190,3 +213,5 @@ _panelCreate {logs} {BUFFER} {logs};
 };
 
 #CLASS {base} {CLOSE};
+
+_echo {Base system loaded. Type "_" to see a list of loaded plugins.};

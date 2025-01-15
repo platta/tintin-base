@@ -1,0 +1,334 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Plugin functionality;
+#NOP ;
+#NOP Dependencies:;
+#NOP - logging;
+#NOP --------------------------------------------------------------------------;
+#CLASS {plugin} {OPEN};
+
+#NOP Global variable to hold plugin definitions;
+#VARIABLE {PLUGINS} {};
+
+#NOP Register a plugin.;
+#NOP %1 - Name of plugin.;
+#NOP %2 - Description of plugin.;
+#NOP %3 - Detailed help.;
+#ALIAS {_pluginCreate} {
+    #NOP %0;
+    #LOCAL {plugin} {};
+    #FORMAT {plugin} {%u} {%1};
+
+    #IF {&PLUGINS[$plugin] > 0} {
+        #NOP Already registered.;
+        _error {Plugin "$plugin" already exists};
+        #RETURN;
+    };
+
+    #VARIABLE {PLUGINS[$plugin]} {
+        {name} {%1}
+        {class} {$ACTIVE_CLASS}
+        {description} {%2}
+        {help} {%3}
+        {commands} {}
+        {panels} {}
+    };
+};
+
+#NOP Unregister a plugin.;
+#NOP %1 - Name of plugin.;
+#ALIAS {_pluginDestroy} {
+    #NOP %0;
+    #LOCAL {plugin} {};
+    #FORMAT {plugin} {%u} {%1};
+
+    #IF {&PLUGINS[$plugin] == 0} {
+        #NOP Doesn't exist.;
+        _error {Plugin "$plugin" does not exist};
+        #RETURN;
+    };
+
+    #UNVARIABLE {PLUGINS[$plugin]};
+};
+
+#NOP Create a plugin command.;
+#NOP %1 - Plugin name;
+#NOP %2 - Command name;
+#NOP %3 - Alias to invoke;
+#NOP %4 - Description;
+#NOP %5 - Argument list with descriptions of each.;
+#NOP %6 - Detailed help string;
+#ALIAS {_pluginCreateCommand} {
+    #NOP %0;
+    #LOCAL {plugin} {};
+    #FORMAT {plugin} {%u} {%1};
+
+    #LOCAL {command} {};
+    #FORMAT {command} {%u} {%2};
+
+    #IF {&PLUGINS[$plugin] == 0} {
+        #NOP Plugin doesn't exist.;
+        _error {Plugin "$plugin" doesn't exist};
+        #RETURN;
+    };
+
+    #IF {&PLUGINS[$plugin][commands][$command] > 0} {
+        #NOP Command already exists.;
+        _error {Command "$command" already exists for plugin "$plugin"};
+        #RETURN;
+    };
+
+    #VARIABLE {PLUGINS[$plugin][commands][$command]} {
+        {name} {%2}
+        {alias} {%3}
+        {description} {%4}
+        {args} {%5}
+        {help} {%6}
+    };
+};
+
+#NOP Create a plugin panel.;
+#NOP %1 - Plugin name;
+#NOP %2 - Panel name;
+#NOP %3 - Description;
+#ALIAS {_pluginCreatePanel} {
+    #NOP %0;
+    #LOCAL {plugin} {};
+    #FORMAT {plugin} {%u} {%1};
+
+    #LOCAL {panel} {};
+    #FORMAT {panel} {%u} {%2};
+
+    #IF {&PLUGINS[$plugin] == 0} {
+        #NOP Plugin doesn't exist.;
+        _error {Plugin "$plugin" doesn't exist};
+        #RETURN;
+    };
+
+    #IF {&PLUGINS[$plugin][panels][$panel] > 0} {
+        #NOP Panel already exists.;
+        _error {Panel "$panel" already exists for plugin "$plugin"};
+        #RETURN;
+    };
+
+    #VARIABLE {PLUGINS[$plugin][panels][$panel]} {
+        {name} {%2}
+        {description} {%3}
+    };
+};
+
+#NOP Destroy plugins created by classes when the class is unloaded.;
+_eventHandlerRegister {CLASS UNLOAD} {_pluginClassUnloadHandler} {7};
+#ALIAS {_pluginClassUnloadHandler} {
+    #NOP %0;
+    #NOP Remove any plugins that were created by that class.;
+    #LOCAL {toDestroy} {};
+    #FOREACH {$PLUGINS[%*]} {plugin} {
+        #IF {"$plugin[class]" == "%1"} {
+            #LIST {toDestroy} {INSERT} {1} {$plugin[name]};
+        };
+    };
+
+    #IF {&toDestroy[]} {
+        #LOCAL {i} {0};
+        #LOOP {1} {&toDestroy[]} {i} {
+            _pluginDestroy {$toDestroy[$i]};
+        };
+    };
+};
+
+#NOP Capture attempts to run plugin commands with arguments.;
+#ALIAS {_%1 %2 %3} {
+    #NOP %0;
+    #LOCAL {plugin} {};
+    #FORMAT {plugin} {%u} {%1};
+
+    #LOCAL {command} {};
+    #FORMAT {command} {%u} {%2};
+
+    #IF {"$command" == "HELP"} {
+        #NOP Asked for help!;
+        #LOCAL {helpCommand} {};
+        #FORMAT {helpCommand} {%u} {%3};
+
+        #IF {&PLUGINS[$plugin][commands][$helpCommand] > 0} {
+            __pluginPrintCommandHelp {$plugin} {$helpCommand};
+        }; #ELSE {
+            _echo {Command "$helpCommand" not found, type "_$plugin" for help on this plugin.};
+        };
+    }; #ELSEIF {&PLUGINS[$plugin][commands][$command] > 0} {
+        $PLUGINS[$plugin][commands][$command][alias] %3;
+    }; #ELSE {
+        _echo {Command "$command" not found, type "_$plugin" for help on this plugin.};
+    };
+} {7};
+
+#NOP Capture attempts to run plugin commands without arguments.;
+#ALIAS {_%1 %2} {
+    #NOP %0;
+    #LOCAL {plugin} {};
+    #FORMAT {plugin} {%u} {%1};
+
+    #LOCAL {command} {};
+    #FORMAT {command} {%u} {%2};
+
+    #IF {&PLUGINS[$plugin] == 0} {
+        #NOP Plugin not found registered.;
+        _echo {Plugin "$plugin" not found, type "_" for a list of all loaded plugins};
+        #RETURN;
+    };
+
+    #IF {"$command" == "HELP"} {
+        #NOP Asked for help, but didn't specify a command.;
+        __pluginPrintHelp {$plugin};
+    }; #ELSEIF {&PLUGINS[$plugin][commands][$command] > 0} {
+        $PLUGINS[$plugin][commands][$command][alias];
+    }; #ELSE {
+        _echo {Command "$command" not found, type "_$plugin" for help on this plugin.};
+    };
+} {8};
+
+#NOP Capture attempts to invoke a plugin by name or just an underscore.;
+#ALIAS {_%1} {
+    #NOP %0;
+    #IF {"%1" != ""} {
+        #LOCAL {plugin} {};
+        #FORMAT {plugin} {%u} {%1};
+
+        #IF {&PLUGINS[$plugin] == 0} {
+            #NOP Plugin not found.;
+            _echo {Plugin "$plugin" not found, type "_" for a list of all loaded plugins};
+            #RETURN;
+        };
+
+        __pluginPrintHelp {%1};
+    }; #ELSE {
+        #NOP Just underscore was typed.;
+        __pluginList;
+    };
+} {9};
+
+#NOP List all loaded plugins.;
+#ALIAS {__pluginList} {
+    #NOP %0;
+    _echo {--------------------------------------------------------------------------------\nCurrently loaded plugins\n--------------------------------------------------------------------------------};
+
+    #FOREACH {$PLUGINS[%*]} {plugin} {
+        _echo {• $plugin[name] - $plugin[description]};
+    };
+
+    _echo {\nTo get detailed information on a plugin, type "_<plugin>" (e.g. "_base")};
+};
+
+#NOP Print help for a plugin.;
+#NOP %1 - Plugin;
+#ALIAS {__pluginPrintHelp} {
+    #NOP %0;
+    #LOCAL {plugin} {};
+    #FORMAT {plugin} {%u} {%1};
+
+    #LOCAL {pluginDetails} {$PLUGINS[$plugin]};
+
+    _echo {--------------------------------------------------------------------------------\n$plugin\n$pluginDetails[description]\n--------------------------------------------------------------------------------};
+
+    #IF {"$pluginDetails[help]" != ""} {
+        _echo {$pluginDetails[help]\n};
+    };
+
+    _echo {Commands:\n---------};
+    #IF {&pluginDetails[commands][] > 0} {
+
+        #FOREACH {$pluginDetails[commands][%*]} {command} {
+            _echo {• $command[name] - $command[description]};
+        };
+        _echo {\nTo get detailed information on a command, type "_$plugin help <command>"};
+    }; #ELSE {
+        _echo {This plugin does not define any commands.};
+    };
+
+    _echo {\nPanels:\n-------};
+    #IF {&pluginDetails[panels][] > 0} {
+        #FOREACH {$pluginDetails[panels][%*]} {panel} {
+            _echo {• $panel[name] - $panel[description]};
+        };
+    }; #ELSE {
+        _echo {This plugin does not define any panels.};
+    };
+};
+
+#NOP Print help for a command.;
+#NOP %1 - Plugin;
+#NOP %2 - Command;
+#ALIAS {__pluginPrintCommandHelp} {
+    #NOP %0;
+    #LOCAL {plugin} {};
+    #FORMAT {plugin} {%u} {%1};
+
+    #LOCAL {command} {};
+    #FORMAT {command} {%u} {%2};
+
+    #LOCAL {commandDetails} {$PLUGINS[$plugin][commands][$command]};
+
+    _echo {--------------------------------------------------------------------------------\n$plugin $command ($commandDetails[alias])\n$commandDetails[description]\n--------------------------------------------------------------------------------};
+
+    #IF {"$commandDetails[help]" != ""} {
+        _echo {$commandDetails[help]\n};
+    };
+
+    #IF {&commandDetails[args][] > 0} {
+        _echo {Arguments:};
+        #LOCAL {i} {0};
+        #LOOP {1} {&commandDetails[args][]} {i} {
+            _echo {• $i - $commandDetails[args][$i]};
+        };
+    }; #ELSE {
+        _echo {This command does not accept any arguments.};
+    };
+};
+
+#NOP Now that we've defined all these aliases, use them.;
+_pluginCreate {plugin} {Plugin command and help functionality};
+
+_pluginCreateCommand
+    {plugin}
+    {create}
+    {_pluginCreate}
+    {Create a new plugin}
+    {
+        {1} {Name of the plugin}
+    };
+
+_pluginCreateCommand
+    {plugin}
+    {destroy}
+    {_pluginDestroy}
+    {Destroy a plugin and all of its commands}
+    {
+        {1} {Name of the plugin}
+    }
+
+_pluginCreateCommand
+    {plugin}
+    {createCommand}
+    {_pluginCreateCommand}
+    {Create a new command for a plugin}
+    {
+        {1} {Name of the plugin}
+        {2} {Name of the command}
+        {3} {Alias to invoke when this command is triggered}
+        {4} {Short description of command}
+        {5} {List of arguments with descriptions of each}
+        {6} {Detailed help string}
+    }
+
+_pluginCreateCommand
+    {plugin}
+    {createPanel}
+    {_pluginCreatePanel}
+    {Register a panel with a plugin}
+    {
+        {1} {Plugin name}
+        {2} {Panel name}
+        {3} {Description}
+    }
+
+#CLASS {plugin} {CLOSE};
