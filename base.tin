@@ -99,7 +99,7 @@ _panelCreate {logs} {BUFFER} {logs};
 
 #NOP Return a string, but skip the first N characters.;
 #NOP %1 - String.;
-#NOP %2 - Number of characters to skiop.;
+#NOP %2 - Number of characters to skip.;
 #FUNCTION {_stringSkip} {
     #NOP Get length.;
     #LOCAL {length} {};
