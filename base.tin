@@ -52,6 +52,7 @@ _classCreatePlugin;
 _eventCreatePlugin;
 
 #NOP Load other classes.;
+_classLoad {flags} {plugins};
 _classLoad {bell} {plugins};
 _classLoad {split} {plugins};
 _classLoad {buffer} {plugins};

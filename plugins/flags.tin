@@ -1,0 +1,382 @@
+#NOP --------------------------------------------------------------------------;
+#NOP Flags class.;
+#NOP Not a true plugin, but centralizes flag functionality.;
+#NOP --------------------------------------------------------------------------;
+#CLASS {flags} {OPEN};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Variables;
+#NOP --------------------------------------------------------------------------;
+
+#NOP Stores all flags.;
+#VARIABLE {FLAGS} {};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Aliases;
+#NOP --------------------------------------------------------------------------;
+
+_pluginCreate {flags} {Commands for setting and getting boolean flags};
+
+#NOP Format a flag to ON or OFF.;
+#NOP %1 - Flag value (0|1).;
+#FUNCTION {_flagsFormatFlag} {
+    #IF {%1 == 1} {
+        #RETURN {ON};
+    }; #ELSE {
+        #RETURN {OFF};
+    };
+}
+
+_pluginCreateCommand
+    {flags}
+    {registerScope}
+    {_flagsRegisterScope}
+    {Register a flag scope}
+    {
+        {1} {Name of the scope (will be converted to upper)}
+    }
+    {All flags must exist in a registered scope. This helps keep flags created by various plugins separate from each other.};
+#ALIAS {_flagsRegisterScope} {
+    #NOP %0;
+    #LOCAL {scope} {};
+    #FORMAT {scope} {%u} {%1};
+
+    #NOP Check if scope already exists.;
+    #IF {&FLAGS[$scope] > 0} {
+        _error {Scope "$scope" is already registered};
+        #RETURN;
+    };
+
+    #NOP Register scope.;
+    #VARIABLE {FLAGS[$scope]} {};
+    _debug {Scope "$scope" registered};
+};
+
+_pluginCreateCommand
+    {flags}
+    {unregisterScope}
+    {_flagsUnregisterScope}
+    {Unregister a flag scope}
+    {
+        {1} {Name of the scope (will be converted to upper)}
+    }
+    {All flags must exist in a registered scope. This helps keep flags created by various plugins separate from each other.};
+#ALIAS {_flagsUnregisterScope} {
+    #NOP %0;
+    #LOCAL {scope} {};
+    #FORMAT {scope} {%u} {%1};
+
+    #NOP Check if the scope exists.;
+    #IF {&FLAGS[$scope] == 0} {
+        _error {Scope "$scope" does not exist};
+        #RETURN;
+    };
+
+    #NOP Unregister scope.;
+    #UNVARIABLE {FLAGS[$scope]};
+    _debug {Scope "$scope" unregistered};
+};
+
+_pluginCreateCommand
+    {flags}
+    {register}
+    {_flagsRegisterFlag}
+    {Register a flag}
+    {
+        {1} {Name of the scope (will be converted to upper)}
+        {2} {Name of the flag (will be converted to upper)}
+        {3} {Initial value, 0|1|ON|OFF default 0}
+    };
+#ALIAS {_flagsRegisterFlag} {
+    #NOP %0;
+    #LOCAL {scope} {};
+    #FORMAT {scope} {%u} {%1};
+
+    #NOP Check if the scope exists.;
+    #IF {&FLAGS[$scope] == 0} {
+        _error {Scope "$scope" does not exist};
+        #RETURN;
+    };
+
+    #LOCAL {flag} {};
+    #FORMAT {flag} {%u} {%2};
+
+    #NOP Check if flag already exists.;
+    #IF {&FLAGS[$scope][$flag] > 0} {
+        _error {Flag "$scope.$flag" is already registered};
+        #RETURN;
+    };
+
+    #NOP Prepare the default value.;
+    #LOCAL {value} {};
+    #FORMAT {value} {%u} {%3};
+    #IF {"$value" == "1" || "$value" == "ON"} {
+        #LOCAL {value} {1};
+    }; #ELSE {
+        #LOCAL {value} {0};
+    };
+
+    #NOP Register the flag.;
+    #VARIABLE {FLAGS[$scope][$flag]} {$value};
+    _debug {Flag "$scope.$flag" registered and set to @_flagsFormatFlag{$value}};
+};
+
+_pluginCreateCommand
+    {flags}
+    {unregister}
+    {_flagsUnregisterFlag}
+    {Unregister a flag}
+    {
+        {1} {Name of the scope (will be converted to upper)}
+        {2} {Name of the flag (will be converted to upper)}
+    };
+#ALIAS {_flagsUnregisterFlag} {
+    #NOP %0;
+    #LOCAL {scope} {};
+    #FORMAT {scope} {%u} {%1};
+
+    #NOP Check if the scope exists.;
+    #IF {&FLAGS[$scope] == 0} {
+        _error {Scope "$scope" does not exist};
+        #RETURN;
+    };
+
+    #LOCAL {flag} {};
+    #FORMAT {flag} {%u} {%2};
+
+    #NOP Check if flag exists.;
+    #IF {&FLAGS[$scope][$flag] == 0} {
+        _error {Flag "$scope.$flag" does not exist};
+        #RETURN;
+    };
+
+    #NOP Unregister the flag.;
+    #UNVARIABLE {FLAGS[$scope][$flag]};
+    _debug {Flag "$scope.$flag" unregistered}
+};
+
+_pluginCreateCommand
+    {flags}
+    {listScopes}
+    {_flagsListScopes}
+    {List all scopes};
+#ALIAS {_flagsListScopes} {
+    #NOP %0;
+    #IF {&FLAGS[] == 0} {
+        _echo {No scopes registered};
+        #RETURN;
+    };
+
+    #LOCAL {maxLength} {0};
+    #LOCAL {scope} {};
+    #FOREACH {*FLAGS[%*]} {scope} {
+        #LOCAL {currentLength} {};
+        #FORMAT {currentLength} {%L} {$scope};
+        #IF {$currentLength > $maxLength} {
+            #LOCAL {maxLength} {$currentLength};
+        };
+    };
+
+    #MATH {maxLength} {$maxLength + 2};
+
+    #FOREACH {*FLAGS[%*]} {scope} {
+        #LOCAL {output} {};
+        #FORMAT {output} {%-${maxLength}s%s flag(s)} {$scope} {&FLAGS[$scope][]};
+        _echo {$output};
+    };
+};
+
+_pluginCreateCommand
+    {flags}
+    {listAll}
+    {_flagsListAll}
+    {List all flags in all scopes};
+#ALIAS {_flagsListAll} {
+    #NOP %0;
+    #IF {&FLAGS[] == 0} {
+        _echo {No scopes registered};
+        #RETURN;
+    };
+
+    #LOCAL {maxLength} {0};
+    #LOCAL {scope} {};
+    #LOCAL {flag} {};
+    #FOREACH {*FLAGS[%*]} {scope} {
+        #FOREACH {*FLAGS[$scope][%*]} {flag} {
+            #LOCAL {currentLength} {};
+            #FORMAT {currentLength} {%L} {$flag};
+            #IF {$currentLength > $maxLength} {
+                #LOCAL {maxLength} {$currentLength};
+            };
+        };
+    };
+
+    #MATH {maxLength} {$maxLength + 2};
+
+    #FOREACH {*FLAGS[%*]} {scope} {
+        #IF {&FLAGS[$scope][] == 0} {
+            _echo {$scope ()};
+        }; #ELSE {
+            _echo {$scope (};
+            #FOREACH {*FLAGS[$scope][%*]} {flag} {
+                #LOCAL {output} {};
+                #FORMAT {output} {    %-${maxLength}s%s} {$flag} {@_flagsFormatFlag{$FLAGS[$scope][$flag]}};
+                _echo {$output};
+            };
+            _echo {)};
+        };
+    };
+};
+
+_pluginCreateCommand
+    {flags}
+    {list}
+    {_flagsListFlags}
+    {List all flags in a scope}
+    {
+        {1} {Name of the scope (will be converted to upper)}
+    }
+    {All flags must exist in a registered scope. This helps keep flags created by various plugins separate from each other.};
+#ALIAS {_flagsListFlags} {
+    #NOP %0;
+    #LOCAL {scope} {};
+    #FORMAT {scope} {%u} {%1};
+
+    #NOP Check if the scope exists.;
+    #IF {&FLAGS[$scope] == 0} {
+        _error {Scope "$scope" does not exist};
+        #RETURN;
+    };
+
+    #IF {&FLAGS[$scope][] == 0} {
+        _echo {No flags registered in scope "$scope"};
+        #RETURN;
+    };
+
+    #LOCAL {maxLength} {0};
+    #LOCAL {flag} {};
+    #FOREACH {*FLAGS[$scope][%*]} {flag} {
+        #LOCAL {currentLength} {};
+        #FORMAT {currentLength} {%L} {$flag};
+        #IF {$currentLength > $maxLength} {
+            #LOCAL {maxLength} {$currentLength};
+        };
+    };
+
+    #MATH {maxLength} {$maxLength + 2};
+
+    #FOREACH {*FLAGS[$scope][%*]} {flag} {
+        #LOCAL {output} {};
+        #FORMAT {output} {%-${maxLength}s%s} {$flag} {@_flagsFormatFlag{$FLAGS[$scope][$flag]}};
+        _echo {$output};
+    };
+};
+
+_pluginCreateCommand
+    {flags}
+    {set}
+    {_flagsSetFlag}
+    {Set a flag's value}
+    {
+        {1} {Name of the scope (will be converted to upper)}
+        {2} {Name of the flag (will be converted to upper)}
+        {3} {Value, 0|1|ON|OFF}
+    };
+#ALIAS {_flagsSetFlag} {
+    #NOP %0;
+    #LOCAL {scope} {};
+    #FORMAT {scope} {%u} {%1};
+
+    #NOP Check if the scope exists.;
+    #IF {&FLAGS[$scope] == 0} {
+        _error {Scope "$scope" does not exist};
+        #RETURN;
+    };
+
+    #LOCAL {flag} {};
+    #FORMAT {flag} {%u} {%2};
+
+    #NOP Check if flag exists.;
+    #IF {&FLAGS[$scope][$flag] == 0} {
+        _error {Flag "$scope.$flag" does not exist};
+        #RETURN;
+    };
+
+    #NOP Prepare the value.;
+    #LOCAL {value} {};
+    #FORMAT {value} {%u} {%3};
+    #IF {"$value" == "1" || "$value" == "ON"} {
+        #LOCAL {value} {1};
+    }; #ELSE {
+        #LOCAL {value} {0};
+    };
+
+    #NOP Set the flag.;
+    #VARIABLE {FLAGS[$scope][$flag]} {$value};
+    _debug {Flag "$scope.$flag" set to @_flagsFormatFlag{$value}};
+};
+
+_pluginCreateCommand
+    {flags}
+    {toggle}
+    {_flagsToggleFlag}
+    {Toggle a flag's value}
+    {
+        {1} {Name of the scope (will be converted to upper)}
+        {2} {Name of the flag (will be converted to upper)}
+    };
+#ALIAS {_flagsToggleFlag} {
+    #NOP %0;
+    #LOCAL {scope} {};
+    #FORMAT {scope} {%u} {%1};
+
+    #NOP Check if the scope exists.;
+    #IF {&FLAGS[$scope] == 0} {
+        _error {Scope "$scope" does not exist};
+        #RETURN;
+    };
+
+    #LOCAL {flag} {};
+    #FORMAT {flag} {%u} {%2};
+
+    #NOP Check if flag exists.;
+    #IF {&FLAGS[$scope][$flag] == 0} {
+        _error {Flag "$scope.$flag" does not exist};
+        #RETURN;
+    };
+
+    #LOCAL {value} {@_flagsGetFlag{$scope; $flag}};
+    #MATH {value} {!$value};
+
+    #NOP Set the flag.;
+    #VARIABLE {FLAGS[$scope][$flag]} {$value};
+    _debug {Flag "$scope.$flag" set to @_flagsFormatFlag{$value}};
+};
+
+#NOP Get the value of a flag.
+#NOP %1 - Name of scope (will be converted to upper).;
+#NOP %2 - Name of flag (will be converted to upper).;
+#FUNCTION {_flagsGetFlag} {
+    #LOCAL {scope} {};
+    #FORMAT {scope} {%u} {%1};
+
+    #NOP Check if the scope exists.;
+    #IF {&FLAGS[$scope] == 0} {
+        _error {Scope "$scope" does not exist};
+        #RETURN;
+    };
+
+    #LOCAL {flag} {};
+    #FORMAT {flag} {%u} {%2};
+
+    #NOP Check if flag exists.;
+    #IF {&FLAGS[$scope][$flag] == 0} {
+        _error {Flag "$scope.$flag" does not exist};
+        #RETURN;
+    };
+
+    #NOP Return the value.;
+    #RETURN {$FLAGS[$scope][$flag]};
+};
+
+#CLASS {flags} {CLOSE};
