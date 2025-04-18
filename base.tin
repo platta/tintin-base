@@ -36,6 +36,22 @@
     {MXP} {\x5B}
   };
 
+#NOP Allows for shortening of directions to abbreviations.;
+#VARIABLE {CARDINAL_DIRECTIONS} {
+    {north} {n}
+    {northeast} {ne}
+    {east} {e}
+    {southeast} {se}
+    {south} {s}
+    {southwest} {sw}
+    {west} {w}
+    {northwest} {nw}
+    {up} {u}
+    {down} {d}
+    {upwards} {u}
+    {downards} {d}
+};
+
 #NOP Load logging class manually.;
 #CLASS {logging} {READ} {$__base/plugins/logging.tin}
 

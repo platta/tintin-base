@@ -48,7 +48,11 @@ _pluginCreateCommand
     };
 
     #NOP Register scope.;
-    #VARIABLE {FLAGS[$scope]} {};
+    #VARIABLE {FLAGS[$scope]} {
+        {name} {$scope}
+        {class} {$ACTIVE_CLASS}
+        {flags} {}
+    };
     _debug {Scope "$scope" registered};
 };
 
@@ -102,7 +106,7 @@ _pluginCreateCommand
     #FORMAT {flag} {%u} {%2};
 
     #NOP Check if flag already exists.;
-    #IF {&FLAGS[$scope][$flag] > 0} {
+    #IF {&FLAGS[$scope][flags][$flag] > 0} {
         _error {Flag "$scope.$flag" is already registered};
         #RETURN;
     };
@@ -117,7 +121,7 @@ _pluginCreateCommand
     };
 
     #NOP Register the flag.;
-    #VARIABLE {FLAGS[$scope][$flag]} {$value};
+    #VARIABLE {FLAGS[$scope][flags][$flag]} {$value};
     _debug {Flag "$scope.$flag" registered and set to @_flagsFormatFlag{$value}};
 };
 
@@ -145,13 +149,13 @@ _pluginCreateCommand
     #FORMAT {flag} {%u} {%2};
 
     #NOP Check if flag exists.;
-    #IF {&FLAGS[$scope][$flag] == 0} {
+    #IF {&FLAGS[$scope][flags][$flag] == 0} {
         _error {Flag "$scope.$flag" does not exist};
         #RETURN;
     };
 
     #NOP Unregister the flag.;
-    #UNVARIABLE {FLAGS[$scope][$flag]};
+    #UNVARIABLE {FLAGS[$scope][flags][$flag]};
     _debug {Flag "$scope.$flag" unregistered}
 };
 
@@ -202,7 +206,7 @@ _pluginCreateCommand
     #LOCAL {scope} {};
     #LOCAL {flag} {};
     #FOREACH {*FLAGS[%*]} {scope} {
-        #FOREACH {*FLAGS[$scope][%*]} {flag} {
+        #FOREACH {*FLAGS[$scope][flags][%*]} {flag} {
             #LOCAL {currentLength} {};
             #FORMAT {currentLength} {%L} {$flag};
             #IF {$currentLength > $maxLength} {
@@ -218,9 +222,9 @@ _pluginCreateCommand
             _echo {$scope ()};
         }; #ELSE {
             _echo {$scope (};
-            #FOREACH {*FLAGS[$scope][%*]} {flag} {
+            #FOREACH {*FLAGS[$scope][flags][%*]} {flag} {
                 #LOCAL {output} {};
-                #FORMAT {output} {    %-${maxLength}s%s} {$flag} {@_flagsFormatFlag{$FLAGS[$scope][$flag]}};
+                #FORMAT {output} {    %-${maxLength}s%s} {$flag} {@_flagsFormatFlag{$FLAGS[$scope][flags][$flag]}};
                 _echo {$output};
             };
             _echo {)};
@@ -255,7 +259,7 @@ _pluginCreateCommand
 
     #LOCAL {maxLength} {0};
     #LOCAL {flag} {};
-    #FOREACH {*FLAGS[$scope][%*]} {flag} {
+    #FOREACH {*FLAGS[$scope][flags][%*]} {flag} {
         #LOCAL {currentLength} {};
         #FORMAT {currentLength} {%L} {$flag};
         #IF {$currentLength > $maxLength} {
@@ -265,9 +269,9 @@ _pluginCreateCommand
 
     #MATH {maxLength} {$maxLength + 2};
 
-    #FOREACH {*FLAGS[$scope][%*]} {flag} {
+    #FOREACH {*FLAGS[$scope][flags][%*]} {flag} {
         #LOCAL {output} {};
-        #FORMAT {output} {%-${maxLength}s%s} {$flag} {@_flagsFormatFlag{$FLAGS[$scope][$flag]}};
+        #FORMAT {output} {%-${maxLength}s%s} {$flag} {@_flagsFormatFlag{$FLAGS[$scope][flags][$flag]}};
         _echo {$output};
     };
 };
@@ -297,7 +301,7 @@ _pluginCreateCommand
     #FORMAT {flag} {%u} {%2};
 
     #NOP Check if flag exists.;
-    #IF {&FLAGS[$scope][$flag] == 0} {
+    #IF {&FLAGS[$scope][flags][$flag] == 0} {
         _error {Flag "$scope.$flag" does not exist};
         #RETURN;
     };
@@ -312,7 +316,7 @@ _pluginCreateCommand
     };
 
     #NOP Set the flag.;
-    #VARIABLE {FLAGS[$scope][$flag]} {$value};
+    #VARIABLE {FLAGS[$scope][flags][$flag]} {$value};
     _debug {Flag "$scope.$flag" set to @_flagsFormatFlag{$value}};
 };
 
@@ -340,7 +344,7 @@ _pluginCreateCommand
     #FORMAT {flag} {%u} {%2};
 
     #NOP Check if flag exists.;
-    #IF {&FLAGS[$scope][$flag] == 0} {
+    #IF {&FLAGS[$scope][flags][$flag] == 0} {
         _error {Flag "$scope.$flag" does not exist};
         #RETURN;
     };
@@ -349,7 +353,7 @@ _pluginCreateCommand
     #MATH {value} {!$value};
 
     #NOP Set the flag.;
-    #VARIABLE {FLAGS[$scope][$flag]} {$value};
+    #VARIABLE {FLAGS[$scope][flags][$flag]} {$value};
     _debug {Flag "$scope.$flag" set to @_flagsFormatFlag{$value}};
 };
 
@@ -370,13 +374,43 @@ _pluginCreateCommand
     #FORMAT {flag} {%u} {%2};
 
     #NOP Check if flag exists.;
-    #IF {&FLAGS[$scope][$flag] == 0} {
+    #IF {&FLAGS[$scope][flags][$flag] == 0} {
         _error {Flag "$scope.$flag" does not exist};
         #RETURN;
     };
 
     #NOP Return the value.;
-    #RETURN {$FLAGS[$scope][$flag]};
+    #RETURN {$FLAGS[$scope][flags][$flag]};
+};
+
+#NOP --------------------------------------------------------------------------;
+#NOP Event Handlers.;
+#NOP --------------------------------------------------------------------------;
+
+_eventHandlerRegister {CLASS UNLOAD flags} {_flagsSelfUnloadHandler};
+#ALIAS {_flagsSelfUnloadHandler} {
+    #NOP %0;
+    #UNVARIABLE {FLAGS};
+};
+
+#NOP Destroy flag scopes created by other classes.;
+_eventHandlerRegister {CLASS UNLOAD} {flagsClassUnloadHandler} {7};
+#ALIAS {flagsClassUnloadHandler} {
+    #NOP %0;
+    #NOP Remove any flags that were created by that class.;
+    #LOCAL {toDestroy} {};
+    #FOREACH {$FLAGS[%*]} {flag} {
+        #IF {"$flag[class]" == "%1"} {
+            #LIST {toDestroy} {INSERT} {1} {$flag[name]};
+        };
+    };
+
+    #IF {&toDestroy[]} {
+        #LOCAL {i} {0};
+        #LOOP {1} {&toDestroy[]} {i} {
+            #UNVARIABLE {FLAGS[$toDestroy[$i]]};
+        };
+    };
 };
 
 #CLASS {flags} {CLOSE};
