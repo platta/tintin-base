@@ -316,8 +316,10 @@ _pluginCreateCommand
     };
 
     #NOP Set the flag.;
-    #VARIABLE {FLAGS[$scope][flags][$flag]} {$value};
-    _debug {Flag "$scope.$flag" set to @_flagsFormatFlag{$value}};
+    #IF {$FLAGS[$scope][flags][$flag] != $value} {
+        #VARIABLE {FLAGS[$scope][flags][$flag]} {$value};
+        _debug {Flag "$scope.$flag" set to @_flagsFormatFlag{$value}};
+    };
 };
 
 _pluginCreateCommand

@@ -8,6 +8,7 @@
 #NOP --------------------------------------------------------------------------;
 
 #NOP Format for log messages.;
+#VARIABLE {LOGGING_TRACE_FORMAT} {<107>};
 #VARIABLE {LOGGING_DEBUG_FORMAT} {<120>};
 #VARIABLE {LOGGING_INFO_FORMAT} {<160>};
 #VARIABLE {LOGGING_WARNING_FORMAT} {<130>};
@@ -51,6 +52,14 @@
     };
 };
 
+#NOP Log a trace message.;
+#NOP %1 - Message.;
+#ALIAS {_trace} {
+    #NOP %0;
+    #IF {$LOG_LEVEL >= 5} {
+        __logMessage {TRACE: %1} {$LOGGING_TRACE_FORMAT};
+    };
+};
 
 #NOP Log a debug message.;
 #NOP %1 - Message.;
@@ -128,14 +137,21 @@
     #LOCAL {level} {};
     #FORMAT {level} {%u} {%1};
 
-    #IF {"$level" == "DEBUG"} {
+    #IF {"$level" == "TRACE"} {
+        #VARIABLE {LOG_LEVEL} {5};
+        _trace {Log level set to trace.};
+    }; #ELSEIF {"$level" == "DEBUG"} {
         #VARIABLE {LOG_LEVEL} {4};
+        _debug {Log level set to debug.};
     }; #ELSEIF {"$level" == "INFO"} {
         #VARIABLE {LOG_LEVEL} {3};
+        _info {Log level set to info.};
     }; #ELSEIF {"$level" == "WARNING"} {
         #VARIABLE {LOG_LEVEL} {2};
+        _warn {Log level set to warning.};
     }; #ELSE {
         #VARIABLE {LOG_LEVEL} {1};
+        _error {Log level set to error.};
     };
 };
 
@@ -145,6 +161,15 @@
     #CLASS {logging} {OPEN};
 
     _pluginCreate {logging} {Logging and echo functions};
+
+    _pluginCreateCommand
+        {logging}
+        {trace}
+        {_trace}
+        {Write a trace log message}
+        {
+            {1} {Log message}
+        };
 
     _pluginCreateCommand
         {logging}
