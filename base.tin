@@ -9,6 +9,11 @@
 #NOP --------------------------------------------------------------------------;
 #CLASS {base} {OPEN};
 
+#NOP Global variable to use to record any relevant version numbers.;
+#VARIABLE {VERSIONS} {
+    {base} {v1.0.0}
+};
+
 #NOP Get home folder.;
 #SCRIPT {__home} {echo $HOME};
 #VARIABLE {__home} {$__home[1]};
